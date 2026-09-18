@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // -----------------------------
+    // Helper functions
+    // -----------------------------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return firestore.get(
+        /databases/(default)/documents/users/$(request.auth.uid)
+      );
+    }
+
+    function isFounder() {
+      return signedIn()
+        && userDoc().data.role == 'founder'
+        && userDoc().data.active == true;
+    }
+
+    function isOwner(userId) {
+      return signedIn()
+        && request.auth.uid == userId;
+    }
+
+
+    // -----------------------------
+    // Task Attachments
+    // Founder uploads attachments
+    // Employees/Interns can read them
+    // Maximum file size: 300 MB
+    // -----------------------------
+
+    match /task-attachments/{allPaths=**} {
+
+      allow read: if signedIn();
+
+      allow write: if isFounder()
+        && request.resource.size <= 314572800;
+    }
+
+
+    // -----------------------------
+    // Task Submissions
+    // Employee / Intern uploads
+    // Founder can upload if required
+    // Maximum file size: 300 MB
+    // -----------------------------
+
+    match /task-submissions/{userId}/{taskId}/{fileName} {
+
+      // Any authenticated workspace user can read
+      allow read: if signedIn();
+
+      // Employee / Intern can upload only
+      // inside their own user folder
+      allow write: if isOwner(userId)
+        && request.resource.size <= 314572800;
+
+      // Founder can also upload
+      allow write: if isFounder()
+        && request.resource.size <= 314572800;
+    }
+
+
+    // -----------------------------
+    // Default deny
+    // -----------------------------
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

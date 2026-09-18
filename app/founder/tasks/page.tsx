@@ -1,0 +1,3426 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Calendar,
+  Check,
+  CheckCircle2,
+  Clock3,
+  Download,
+  FileText,
+  Filter,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Trash2,
+  User,
+  Users,
+  X,
+  Zap,
+} from "lucide-react";
+
+import { onAuthStateChanged } from "firebase/auth";
+
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  onSnapshot,
+  setDoc,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
+
+import { auth, db } from "@/lib/firebase";
+
+type UserProfile = {
+  id: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  department?: string;
+  active?: boolean;
+};
+
+type Client = {
+  id: string;
+  name?: string;
+  company?: string;
+  active?: boolean;
+};
+
+type Task = {
+  id: string;
+
+  title?: string;
+  description?: string;
+
+  assignedTo?: string;
+  assignedToId?: string;
+  assignedToName?: string;
+
+  clientId?: string;
+  client?: string;
+  clientName?: string;
+
+  department?: string;
+  taskType?: string;
+
+  priority?: string;
+  status?: string;
+
+  startDate?: string;
+  deadline?: string;
+  deadlineDate?: string;
+  deadlineTime?: string;
+
+  // Legacy Firebase Storage fields retained for backwards compatibility.
+  attachmentUrls?: string[];
+  attachmentNames?: string[];
+
+  // Google Drive reference for the task.
+  referenceDriveUrl?: string;
+  referenceDriveType?: "google_drive";
+
+  submissionUrl?: string;
+  submissionName?: string;
+  submissionNote?: string;
+  submittedBy?: string;
+  submittedByName?: string;
+  submissionAt?: any;
+  feedback?: string;
+  reviewComment?: string;
+  approvedAt?: any;
+  approvedBy?: string;
+  approvedByName?: string;
+  reviewedAt?: any;
+  reviewedBy?: string;
+  reviewedByName?: string;
+
+  calendarReminder?: boolean;
+  calendarEventId?: string;
+  googleCalendarSync?: boolean;
+  googleCalendarEventId?: string;
+
+  // Team task support.
+  assignmentType?: "single" | "team";
+  teamMemberIds?: string[];
+  teamMembers?: Array<{
+    id: string;
+    name?: string;
+    email?: string;
+    role?: string;
+    department?: string;
+    isTeamLead?: boolean;
+  }>;
+  teamLeadId?: string;
+  teamLeadName?: string;
+  submitterMode?: "selected" | "anybody";
+  submitterId?: string;
+  submitterName?: string;
+  changeRecipientIds?: string[];
+  changeRecipientNames?: string[];
+  submittedById?: string;
+
+  // Employee task deletion permission workflow.
+  deleteRequestStatus?: "none" | "pending" | "approved" | "rejected";
+  deleteRequestedBy?: string;
+  deleteRequestedByName?: string;
+  deleteRequestedAt?: any;
+  deleteReviewedAt?: any;
+  deleteReviewedBy?: string;
+  deleteReviewedByName?: string;
+  deleteReviewMessage?: string;
+
+  createdBy?: string;
+  createdByName?: string;
+
+  createdAt?: any;
+  updatedAt?: any;
+};
+
+const DEPARTMENTS = [
+  "Management",
+  "Editor",
+  "Content",
+  "Development",
+];
+
+const TASK_TYPES = [
+  "Website Development",
+  "Content Writing",
+  "Video Editing",
+  "Social Media",
+  "Design",
+  "Research",
+  "Other",
+];
+
+const PRIORITIES = [
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+  "URGENT",
+];
+
+const STATUSES = [
+  "TO DO",
+  "IN PROGRESS",
+  "SUBMITTED",
+  "CHANGES REQUESTED",
+  "APPROVED",
+  "COMPLETED",
+];
+
+function normalizeStatus(value?: string) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "_")
+    .trim();
+}
+
+function isFinalTaskStatus(status?: string) {
+  return normalizeStatus(status) === "completed";
+}
+
+function isSubmittedTask(status?: string) {
+  return ["submitted", "review"].includes(normalizeStatus(status));
+}
+
+function isChangesTask(status?: string) {
+  return ["changes_requested", "changes"].includes(normalizeStatus(status));
+}
+
+function formatDateTime(value?: any) {
+  if (!value) return "";
+
+  try {
+    const date =
+      typeof value?.toDate === "function"
+        ? value.toDate()
+        : value instanceof Date
+        ? value
+        : new Date(value);
+
+    if (Number.isNaN(date.getTime())) return "";
+
+    return date.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function formatDate(dateValue?: string) {
+  if (!dateValue) return "Not set";
+
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return dateValue;
+  }
+
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function getPriorityClass(priority?: string) {
+  switch (priority) {
+    case "URGENT":
+      return "border-red-500/20 bg-red-500/10 text-red-300";
+
+    case "HIGH":
+      return "border-orange-500/20 bg-orange-500/10 text-orange-300";
+
+    case "MEDIUM":
+      return "border-yellow-500/20 bg-yellow-500/10 text-yellow-300";
+
+    default:
+      return "border-blue-500/20 bg-blue-500/10 text-blue-300";
+  }
+}
+
+function getStatusClass(status?: string) {
+  switch (status) {
+    case "COMPLETED":
+      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-300";
+
+    case "APPROVED":
+      return "border-cyan-500/20 bg-cyan-500/10 text-cyan-300";
+
+    case "SUBMITTED":
+      return "border-violet-500/20 bg-violet-500/10 text-violet-300";
+
+    case "CHANGES REQUESTED":
+      return "border-orange-500/20 bg-orange-500/10 text-orange-300";
+
+    case "IN PROGRESS":
+      return "border-blue-500/20 bg-blue-500/10 text-blue-300";
+
+    default:
+      return "border-white/10 bg-white/[0.04] text-white/55";
+  }
+}
+
+export default function FounderTasksPage() {
+  const [currentUser, setCurrentUser] =
+    useState<any>(null);
+
+  const [authorized, setAuthorized] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+
+  const [loading, setLoading] = useState(true);
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] =
+    useState("ALL");
+  const [priorityFilter, setPriorityFilter] =
+    useState("ALL");
+
+  const [showCreateModal, setShowCreateModal] =
+    useState(false);
+
+  const [selectedTask, setSelectedTask] =
+    useState<Task | null>(null);
+
+  const [creating, setCreating] = useState(false);
+
+  const [message, setMessage] = useState("");
+  const [errorMessage, setErrorMessage] =
+    useState("");
+
+  const [reviewLoading, setReviewLoading] =
+    useState<string | null>(null);
+
+  const [showChangesModal, setShowChangesModal] =
+    useState(false);
+
+  const [reviewFeedback, setReviewFeedback] =
+    useState("");
+
+  const [deleteReviewLoading, setDeleteReviewLoading] =
+    useState<string | null>(null);
+
+  const [changeRecipientIds, setChangeRecipientIds] =
+    useState<string[]>([]);
+
+  const [assignmentType, setAssignmentType] =
+    useState<"single" | "team">("single");
+
+  const [teamMemberIds, setTeamMemberIds] =
+    useState<string[]>([]);
+
+  const [teamLeadId, setTeamLeadId] =
+    useState("");
+
+  const [submitterMode, setSubmitterMode] =
+    useState<"selected" | "anybody">("selected");
+
+  const [submitterId, setSubmitterId] =
+    useState("");
+
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    assignedTo: "",
+    clientId: "",
+    department: "Development",
+    taskType: "Website Development",
+    priority: "MEDIUM",
+    startDate: new Date()
+      .toISOString()
+      .split("T")[0],
+    deadlineDate: "",
+    deadlineTime: "18:00",
+    calendarReminder: true,
+    referenceDriveUrl: "",
+  });
+
+  const selectedSingleUser =
+    users.find((user) => user.id === form.assignedTo) || null;
+
+  const selectedTeamMembers = users.filter((user) =>
+    teamMemberIds.includes(user.id)
+  );
+
+  const selectedTeamLead =
+    users.find((user) => user.id === teamLeadId) || null;
+
+  /*
+   * AUTHENTICATION
+   */
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (user) => {
+        if (!user) {
+          setAuthorized(false);
+          setLoading(false);
+          setCheckingAuth(false);
+          return;
+        }
+
+        try {
+          const userRef = doc(
+            db,
+            "users",
+            user.uid
+          );
+
+          const userSnap = await getDoc(userRef);
+
+          if (!userSnap.exists()) {
+            setAuthorized(false);
+            setLoading(false);
+            setCheckingAuth(false);
+            return;
+          }
+
+          const userData = userSnap.data();
+
+          if (
+            userData.role !== "founder" ||
+            userData.active !== true
+          ) {
+            setAuthorized(false);
+            setLoading(false);
+            setCheckingAuth(false);
+            return;
+          }
+
+          setCurrentUser({
+            uid: user.uid,
+            ...userData,
+          });
+
+          setAuthorized(true);
+        } catch (error) {
+          console.error(
+            "Founder authentication error:",
+            error
+          );
+
+          setAuthorized(false);
+        }
+
+        setLoading(false);
+        setCheckingAuth(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  /*
+   * LOAD TASKS
+   */
+  useEffect(() => {
+    if (!authorized) return;
+
+    const tasksRef = collection(db, "tasks");
+
+    const unsubscribe = onSnapshot(
+      tasksRef,
+      (snapshot) => {
+        const taskData: Task[] =
+          snapshot.docs.map((item) => ({
+            id: item.id,
+            ...item.data(),
+          })) as Task[];
+
+        taskData.sort((a, b) => {
+          const aTime =
+            a.createdAt?.toMillis?.() || 0;
+
+          const bTime =
+            b.createdAt?.toMillis?.() || 0;
+
+          return bTime - aTime;
+        });
+
+        setTasks(taskData);
+      },
+      (error) => {
+        console.error(
+          "Tasks listener error:",
+          error
+        );
+      }
+    );
+
+    return () => unsubscribe();
+  }, [authorized]);
+
+  /*
+   * LOAD TEAM MEMBERS
+   */
+  useEffect(() => {
+    if (!authorized) return;
+
+    async function loadUsers() {
+      try {
+        const usersSnapshot = await getDocs(
+          collection(db, "users")
+        );
+
+        const data: UserProfile[] =
+          usersSnapshot.docs
+            .map((item) => ({
+              id: item.id,
+              ...item.data(),
+            }))
+            .filter((item: any) => {
+              return (
+                item.active === true &&
+                (item.role === "employee" ||
+                  item.role === "intern")
+              );
+            }) as UserProfile[];
+
+        data.sort((a, b) =>
+          String(a.name || "").localeCompare(
+            String(b.name || "")
+          )
+        );
+
+        setUsers(data);
+      } catch (error) {
+        console.error(
+          "Failed to load team:",
+          error
+        );
+      }
+    }
+
+    loadUsers();
+  }, [authorized]);
+
+  /*
+   * LOAD CLIENTS
+   */
+  useEffect(() => {
+    if (!authorized) return;
+
+    async function loadClients() {
+      try {
+        const clientsSnapshot = await getDocs(
+          collection(db, "clients")
+        );
+
+        const data: Client[] =
+          clientsSnapshot.docs.map((item) => ({
+            id: item.id,
+            ...item.data(),
+          })) as Client[];
+
+        setClients(data);
+      } catch (error) {
+        console.error(
+          "Failed to load clients:",
+          error
+        );
+      }
+    }
+
+    loadClients();
+  }, [authorized]);
+
+  /*
+   * FILTERED TASKS
+   */
+  const filteredTasks = useMemo(() => {
+    const queryText =
+      search.trim().toLowerCase();
+
+    return tasks.filter((task) => {
+      const matchesSearch =
+        !queryText ||
+        String(task.title || "")
+          .toLowerCase()
+          .includes(queryText) ||
+        String(task.description || "")
+          .toLowerCase()
+          .includes(queryText) ||
+        String(
+          task.assignedToName || ""
+        )
+          .toLowerCase()
+          .includes(queryText) ||
+        String(
+          task.clientName ||
+            task.client ||
+            ""
+        )
+          .toLowerCase()
+          .includes(queryText);
+
+      const matchesStatus =
+        statusFilter === "ALL" ||
+        normalizeStatus(task.status) === normalizeStatus(statusFilter);
+
+      const matchesPriority =
+        priorityFilter === "ALL" ||
+        task.priority === priorityFilter;
+
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesPriority
+      );
+    });
+  }, [
+    tasks,
+    search,
+    statusFilter,
+    priorityFilter,
+  ]);
+
+  /*
+   * STATISTICS
+   */
+  const totalTasks = tasks.length;
+
+  const activeTasks = tasks.filter(
+    (task) =>
+      ["in_progress", "todo"].includes(normalizeStatus(task.status))
+  ).length;
+
+  const reviewTasks = tasks.filter(
+    (task) =>
+      isSubmittedTask(task.status)
+  ).length;
+
+  const completedTasks = tasks.filter(
+    (task) =>
+      normalizeStatus(task.status) === "completed"
+  ).length;
+
+  const urgentTasks = tasks.filter(
+    (task) =>
+      task.priority === "URGENT"
+  ).length;
+
+  const overdueTasks = tasks.filter((task) => {
+    if (
+      !task.deadline &&
+      !task.deadlineDate
+    ) {
+      return false;
+    }
+
+    if (isFinalTaskStatus(task.status)) {
+      return false;
+    }
+
+    const deadlineString =
+      task.deadline ||
+      task.deadlineDate;
+
+    if (!deadlineString) return false;
+
+    return (
+      new Date(deadlineString).getTime() <
+      Date.now()
+    );
+  }).length;
+
+  /*
+   * RESET FORM
+   */
+  function resetForm() {
+    setAssignmentType("single");
+    setTeamMemberIds([]);
+    setTeamLeadId("");
+    setSubmitterMode("selected");
+    setSubmitterId("");
+
+    setForm({
+      title: "",
+      description: "",
+      assignedTo: "",
+      clientId: "",
+      department: "Development",
+      taskType: "Website Development",
+      priority: "MEDIUM",
+      startDate: new Date()
+        .toISOString()
+        .split("T")[0],
+      deadlineDate: "",
+      deadlineTime: "18:00",
+      calendarReminder: true,
+      referenceDriveUrl: "",
+    });
+
+    setMessage("");
+    setErrorMessage("");
+  }
+
+  /*
+   * CREATE TASK
+   *
+   * Supports:
+   * - Single Employee: existing normal workflow.
+   * - Create Team: one shared task with multiple members, a team lead
+   *   and a submitter rule (selected person or anybody).
+   */
+  async function handleCreateTask(
+    event: React.FormEvent
+  ) {
+    event.preventDefault();
+
+    setMessage("");
+    setErrorMessage("");
+
+    if (!currentUser) {
+      setErrorMessage("Founder session not available.");
+      return;
+    }
+
+    if (!form.title.trim()) {
+      setErrorMessage("Task title is required.");
+      return;
+    }
+
+    if (!form.deadlineDate) {
+      setErrorMessage("Please select a deadline date.");
+      return;
+    }
+
+    if (assignmentType === "single" && !form.assignedTo) {
+      setErrorMessage("Please select a team member.");
+      return;
+    }
+
+    if (assignmentType === "team" && teamMemberIds.length < 2) {
+      setErrorMessage("Select at least 2 team members for a team task.");
+      return;
+    }
+
+    if (assignmentType === "team" && !teamLeadId) {
+      setErrorMessage("Please select a Team Lead from the selected members.");
+      return;
+    }
+
+    if (
+      assignmentType === "team" &&
+      !teamMemberIds.includes(teamLeadId)
+    ) {
+      setErrorMessage("Team Lead must be one of the selected team members.");
+      return;
+    }
+
+    if (
+      assignmentType === "team" &&
+      submitterMode === "selected" &&
+      !submitterId
+    ) {
+      setErrorMessage("Select who is going to submit the team task.");
+      return;
+    }
+
+    if (
+      assignmentType === "team" &&
+      submitterMode === "selected" &&
+      !teamMemberIds.includes(submitterId)
+    ) {
+      setErrorMessage("The selected submitter must belong to the team.");
+      return;
+    }
+
+    const selectedClient =
+      clients.find((client) => client.id === form.clientId);
+
+    const referenceDriveUrl =
+      form.referenceDriveUrl.trim();
+
+    if (referenceDriveUrl) {
+      const isGoogleDriveLink =
+        referenceDriveUrl.startsWith("https://drive.google.com/") ||
+        referenceDriveUrl.startsWith("https://docs.google.com/");
+
+      if (!isGoogleDriveLink) {
+        setErrorMessage(
+          "Please enter a valid Google Drive or Google Docs link."
+        );
+        return;
+      }
+    }
+
+    const singleUser =
+      assignmentType === "single"
+        ? users.find((user) => user.id === form.assignedTo) || null
+        : null;
+
+    if (assignmentType === "single" && !singleUser) {
+      setErrorMessage("Selected team member could not be found.");
+      return;
+    }
+
+    const teamMembers =
+      assignmentType === "team"
+        ? selectedTeamMembers.map((member) => ({
+            id: member.id,
+            name: member.name || member.email || "Team Member",
+            email: member.email || "",
+            role: member.role || "Team Member",
+            department: member.department || "",
+            isTeamLead: member.id === teamLeadId,
+          }))
+        : [];
+
+    setCreating(true);
+
+    try {
+      const deadline =
+        `${form.deadlineDate}T${form.deadlineTime}`;
+
+      const primaryAssignee =
+        assignmentType === "single"
+          ? singleUser
+          : selectedTeamLead;
+
+      if (!primaryAssignee) {
+        throw new Error("A primary assignee could not be determined.");
+      }
+
+      const submitter =
+        assignmentType === "team" && submitterMode === "selected"
+          ? users.find((user) => user.id === submitterId) || null
+          : null;
+
+      const taskData: Record<string, any> = {
+        title: form.title.trim(),
+        description: form.description.trim(),
+
+        // Keep assignedTo populated for backwards compatibility and
+        // for the team lead/primary assignee.
+        assignedTo: primaryAssignee.id,
+        assignedToId: primaryAssignee.id,
+        assignedToName:
+          primaryAssignee.name ||
+          primaryAssignee.email ||
+          "Team Member",
+        assignedToEmail:
+          primaryAssignee.email || "",
+
+        assignmentType,
+        teamMemberIds:
+          assignmentType === "team"
+            ? teamMemberIds
+            : [primaryAssignee.id],
+        teamMembers:
+          assignmentType === "team"
+            ? teamMembers
+            : [
+                {
+                  id: primaryAssignee.id,
+                  name:
+                    primaryAssignee.name ||
+                    primaryAssignee.email ||
+                    "Team Member",
+                  email: primaryAssignee.email || "",
+                  role: primaryAssignee.role || "Team Member",
+                  department: primaryAssignee.department || "",
+                  isTeamLead: false,
+                },
+              ],
+
+        teamLeadId:
+          assignmentType === "team"
+            ? teamLeadId
+            : null,
+        teamLeadName:
+          assignmentType === "team"
+            ? (
+                selectedTeamLead?.name ||
+                selectedTeamLead?.email ||
+                ""
+              )
+            : null,
+
+        submitterMode:
+          assignmentType === "team"
+            ? submitterMode
+            : "selected",
+        submitterId:
+          assignmentType === "team" && submitterMode === "selected"
+            ? submitter?.id || ""
+            : assignmentType === "single"
+            ? primaryAssignee.id
+            : null,
+        submitterName:
+          assignmentType === "team" && submitterMode === "selected"
+            ? (
+                submitter?.name ||
+                submitter?.email ||
+                ""
+              )
+            : assignmentType === "single"
+            ? (
+                primaryAssignee.name ||
+                primaryAssignee.email ||
+                ""
+              )
+            : null,
+
+        clientId: form.clientId || null,
+        clientName: selectedClient
+          ? selectedClient.name ||
+            selectedClient.company ||
+            ""
+          : "",
+        client: selectedClient
+          ? selectedClient.name ||
+            selectedClient.company ||
+            ""
+          : "",
+
+        department: form.department,
+        taskType: form.taskType,
+        priority: form.priority,
+        status: "TO DO",
+
+        startDate: form.startDate,
+        deadlineDate: form.deadlineDate,
+        deadlineTime: form.deadlineTime,
+        deadline,
+
+        referenceDriveUrl,
+        referenceDriveType:
+          referenceDriveUrl ? "google_drive" : null,
+
+        calendarReminder: form.calendarReminder,
+
+        // No employee deletion request exists when a task is created.
+        deleteRequestStatus: "none",
+
+        createdBy: currentUser.uid,
+        createdByName:
+          currentUser.name ||
+          currentUser.email ||
+          "Founder",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      const taskRef = await addDoc(
+        collection(db, "tasks"),
+        taskData
+      );
+
+      /*
+       * NOTIFICATIONS
+       *
+       * Team task:
+       * - Selected submitter -> only that member is told to submit.
+       * - Anybody -> every selected member is told anybody can submit.
+       *
+       * Single task keeps the existing normal notification.
+       */
+      const notificationRecipients =
+        assignmentType === "team"
+          ? selectedTeamMembers
+          : singleUser
+          ? [singleUser]
+          : [];
+
+      for (const member of notificationRecipients) {
+        const isSelectedSubmitter =
+          assignmentType === "team" &&
+          submitterMode === "selected" &&
+          member.id === submitterId;
+
+        const notificationMessage =
+          assignmentType === "team"
+            ? submitterMode === "selected"
+              ? isSelectedSubmitter
+                ? `${currentUser.name || "Founder"} selected you to submit the task "${form.title.trim()}". Deadline: ${formatDate(form.deadlineDate)} at ${form.deadlineTime}.`
+                : `${currentUser.name || "Founder"} assigned you to the team task "${form.title.trim()}". ${submitter?.name || "The selected submitter"} is responsible for submitting it. Deadline: ${formatDate(form.deadlineDate)} at ${form.deadlineTime}.`
+              : `${currentUser.name || "Founder"} assigned you to the team task "${form.title.trim()}". Anybody on the selected team can submit this task. Deadline: ${formatDate(form.deadlineDate)} at ${form.deadlineTime}.`
+            : `${currentUser.name || "Founder"} assigned "${form.title.trim()}" to you. Deadline: ${formatDate(form.deadlineDate)} at ${form.deadlineTime}.`;
+
+        await addDoc(
+          collection(db, "notifications"),
+          {
+            userId: member.id,
+            recipientId: member.id,
+            recipientEmail: member.email || "",
+            senderId: currentUser.uid,
+            senderName:
+              currentUser.name ||
+              currentUser.email ||
+              "Founder",
+            title:
+              assignmentType === "team"
+                ? submitterMode === "selected"
+                  ? isSelectedSubmitter
+                    ? "Founder selected you to submit"
+                    : "New team task assigned"
+                  : "New team task — anybody can submit"
+                : "New task assigned",
+            message: notificationMessage,
+            type:
+              assignmentType === "team"
+                ? "team_task"
+                : "new_task",
+            priority:
+              form.priority === "URGENT"
+                ? "urgent"
+                : form.priority === "HIGH"
+                ? "important"
+                : "normal",
+            read: false,
+            taskId: taskRef.id,
+            taskTitle: form.title.trim(),
+            assignmentType,
+            submitterMode:
+              assignmentType === "team"
+                ? submitterMode
+                : "selected",
+            submitterId:
+              assignmentType === "team"
+                ? submitterMode === "selected"
+                  ? submitterId
+                  : null
+                : member.id,
+            link: "/employee/tasks",
+            createdAt: serverTimestamp(),
+          }
+        );
+
+        if (currentUser.uid) {
+          await addDoc(
+            collection(db, "notifications"),
+            {
+              userId: currentUser.uid,
+              recipientId: member.id,
+              senderId: currentUser.uid,
+              senderName:
+                currentUser.name ||
+                currentUser.email ||
+                "Founder",
+              recipientName:
+                member.name ||
+                member.email ||
+                "Team Member",
+              direction: "sent",
+              title:
+                assignmentType === "team"
+                  ? "Team task assigned"
+                  : "Task assigned",
+              message: notificationMessage,
+              type:
+                assignmentType === "team"
+                  ? "team_task"
+                  : "new_task",
+              priority:
+                form.priority === "URGENT"
+                  ? "urgent"
+                  : form.priority === "HIGH"
+                  ? "important"
+                  : "normal",
+              read: true,
+              taskId: taskRef.id,
+              taskTitle: form.title.trim(),
+              link: "/founder/tasks",
+              createdAt: serverTimestamp(),
+            }
+          );
+        }
+      }
+
+      /*
+       * INTERNAL CALENDAR + GOOGLE CALENDAR
+       *
+       * A team task is represented by one calendar event and the selected
+       * team members are invited as attendees.
+       */
+      if (form.calendarReminder) {
+        const calendarRef = await addDoc(
+          collection(db, "calendarEvents"),
+          {
+            title:
+              `Task Deadline: ${form.title.trim()}`,
+            description:
+              form.description.trim(),
+            eventType: "task_deadline",
+            taskId: taskRef.id,
+            assignedTo: primaryAssignee.id,
+            assignedToName:
+              primaryAssignee.name ||
+              primaryAssignee.email ||
+              "",
+            assignedToEmail:
+              primaryAssignee.email || "",
+            assignedToIds:
+              assignmentType === "team"
+                ? teamMemberIds
+                : [primaryAssignee.id],
+            reminderMinutes: 60,
+            assignedToNames:
+              assignmentType === "team"
+                ? teamMembers.map((member) => member.name || member.email || "Team Member")
+                : [
+                    primaryAssignee.name ||
+                    primaryAssignee.email ||
+                    "",
+                  ],
+            clientId: form.clientId || null,
+            clientName: selectedClient
+              ? selectedClient.name ||
+                selectedClient.company ||
+                ""
+              : "",
+            date: form.deadlineDate,
+            time: form.deadlineTime,
+            reminderEnabled: true,
+            googleCalendarSync: false,
+            googleCalendarEventId: "",
+            createdBy: currentUser.uid,
+            createdAt: serverTimestamp(),
+          }
+        );
+
+        await updateDoc(
+          doc(db, "tasks", taskRef.id),
+          {
+            calendarEventId: calendarRef.id,
+          }
+        );
+
+        // Google Calendar OAuth is intentionally not requested during task creation.
+        // The internal employee calendar reminder is created here without a popup.
+        // Google Calendar/email synchronization will be handled as the final MVP step.
+        setMessage(
+          assignmentType === "team"
+            ? "Team task created, all selected members notified and calendar reminders set."
+            : "Task created, employee notified and calendar reminder set."
+        );
+      } else {
+        setMessage(
+          assignmentType === "team"
+            ? "Team task created and all selected members notified."
+            : "Task created successfully and notification sent."
+        );
+      }
+
+      resetForm();
+
+      setTimeout(() => {
+        setShowCreateModal(false);
+        setMessage("");
+      }, 1200);
+    } catch (error) {
+      console.error(
+        "Create task error:",
+        error
+      );
+
+      setErrorMessage(
+        "Could not create the task. Please check Firebase permissions and try again."
+      );
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  /*
+   * NOTIFY TASK MEMBERS
+   *
+   * For single tasks this targets assignedTo.
+   * For team tasks this targets the requested recipient list.
+   */
+  async function notifyTaskMembers(
+    task: Task,
+    title: string,
+    notificationMessage: string,
+    type: string,
+    priority: string = "important",
+    recipientIds?: string[]
+  ) {
+    const ids =
+      recipientIds && recipientIds.length > 0
+        ? recipientIds
+        : task.teamMemberIds && task.teamMemberIds.length > 0
+        ? task.teamMemberIds
+        : task.assignedTo
+        ? [task.assignedTo]
+        : [];
+
+    if (ids.length === 0) return;
+
+    const uniqueIds = [...new Set(ids)];
+
+    try {
+      for (const recipientId of uniqueIds) {
+        const recipient =
+          users.find((user) => user.id === recipientId);
+
+        await addDoc(collection(db, "notifications"), {
+          userId: recipientId,
+          recipientId,
+          recipientEmail: recipient?.email || "",
+          senderId: currentUser?.uid || "",
+          senderName:
+            currentUser?.name ||
+            currentUser?.email ||
+            "Founder",
+          title,
+          message: notificationMessage,
+          type,
+          priority,
+          read: false,
+          taskId: task.id,
+          taskTitle: task.title || "Untitled task",
+          link: "/employee/tasks",
+          createdAt: serverTimestamp(),
+        });
+
+        if (currentUser?.uid) {
+          await addDoc(collection(db, "notifications"), {
+            userId: currentUser.uid,
+            recipientId,
+            senderId: currentUser.uid,
+            senderName:
+              currentUser.name ||
+              currentUser.email ||
+              "Founder",
+            recipientName:
+              recipient?.name ||
+              recipient?.email ||
+              "Team Member",
+            direction: "sent",
+            title,
+            message: notificationMessage,
+            type,
+            priority,
+            read: true,
+            taskId: task.id,
+            taskTitle: task.title || "Untitled task",
+            link: "/founder/tasks",
+            createdAt: serverTimestamp(),
+          });
+        }
+      }
+    } catch (error) {
+      console.error(
+        "Failed to notify task members:",
+        error
+      );
+    }
+  }
+
+  async function notifyAssignedUser(
+    task: Task,
+    title: string,
+    notificationMessage: string,
+    type: string,
+    priority: string = "important"
+  ) {
+    await notifyTaskMembers(
+      task,
+      title,
+      notificationMessage,
+      type,
+      priority
+    );
+  }
+
+  /*
+   * APPROVE TASK
+   */
+  async function approveTask(task: Task) {
+    try {
+      setReviewLoading(task.id);
+
+      await updateDoc(doc(db, "tasks", task.id), {
+        status: "APPROVED",
+        approvedAt: serverTimestamp(),
+        approvedBy: currentUser?.uid || "",
+        approvedByName: currentUser?.name || currentUser?.email || "Founder",
+        updatedAt: serverTimestamp(),
+      });
+
+      await notifyAssignedUser(
+        task,
+        "Task approved",
+        `Your work on "${task.title || "Untitled task"}" was approved by the Founder. Please mark the task as completed.`,
+        "approval",
+        "important"
+      );
+
+      setSelectedTask({
+        ...task,
+        status: "APPROVED",
+      });
+      alert("Work approved. The employee can now mark the task as completed.");
+    } catch (error) {
+      console.error("Approve task error:", error);
+      alert("Unable to approve this task. Please try again.");
+    } finally {
+      setReviewLoading(null);
+    }
+  }
+
+  /*
+   * MARK APPROVED TASK AS COMPLETED
+   */
+  async function markTaskCompleted(task: Task) {
+    if (normalizeStatus(task.status) !== "approved") {
+      alert("Only an approved task can be marked as completed.");
+      return;
+    }
+
+    try {
+      setReviewLoading(task.id);
+
+      await updateDoc(doc(db, "tasks", task.id), {
+        status: "COMPLETED",
+        completedAt: serverTimestamp(),
+        completedBy: currentUser?.uid || "",
+        completedByName:
+          currentUser?.name ||
+          currentUser?.email ||
+          "Founder",
+        updatedAt: serverTimestamp(),
+      });
+
+      await notifyAssignedUser(
+        task,
+        "Task completed",
+        `The Founder marked "${task.title || "Untitled task"}" as completed.`,
+        "completion",
+        "important"
+      );
+
+      setSelectedTask({
+        ...task,
+        status: "COMPLETED",
+      });
+
+      alert("Task marked as completed successfully.");
+    } catch (error) {
+      console.error("Founder completion error:", error);
+      alert("Unable to mark the task as completed. Please try again.");
+    } finally {
+      setReviewLoading(null);
+    }
+  }
+
+  /*
+   * REQUEST CHANGES
+   *
+   * Founder chooses exactly who should receive the changes:
+   * - one or more named members
+   * - All team members
+   */
+  async function requestChanges(task: Task) {
+    const feedback = reviewFeedback.trim();
+
+    if (!feedback) {
+      alert(
+        "Please enter the changes or feedback before requesting changes."
+      );
+      return;
+    }
+
+    const availableRecipientIds =
+      task.teamMemberIds && task.teamMemberIds.length > 0
+        ? task.teamMemberIds
+        : task.assignedTo
+        ? [task.assignedTo]
+        : [];
+
+    const selectedRecipients =
+      changeRecipientIds.filter((id) =>
+        availableRecipientIds.includes(id)
+      );
+
+    if (selectedRecipients.length === 0) {
+      alert(
+        "Please select at least one employee to receive the requested changes."
+      );
+      return;
+    }
+
+    try {
+      setReviewLoading(task.id);
+
+      const recipientNames = selectedRecipients.map(
+        (id) => {
+          const member = users.find(
+            (user) => user.id === id
+          );
+          return (
+            member?.name ||
+            member?.email ||
+            "Team Member"
+          );
+        }
+      );
+
+      await updateDoc(
+        doc(db, "tasks", task.id),
+        {
+          status: "CHANGES REQUESTED",
+          feedback,
+          reviewComment: feedback,
+          reviewedAt: serverTimestamp(),
+          reviewedBy: currentUser?.uid || "",
+          reviewedByName:
+            currentUser?.name ||
+            currentUser?.email ||
+            "Founder",
+          changeRecipientIds: selectedRecipients,
+          changeRecipientNames: recipientNames,
+          updatedAt: serverTimestamp(),
+        }
+      );
+
+      const recipientLabel =
+        selectedRecipients.length === availableRecipientIds.length
+          ? "all selected team members"
+          : recipientNames.join(", ");
+
+      await notifyTaskMembers(
+        task,
+        "Changes requested",
+        `The Founder requested changes on "${task.title || "Untitled task"}" for ${recipientLabel}: ${feedback}`,
+        "changes_requested",
+        task.priority === "URGENT"
+          ? "urgent"
+          : "important",
+        selectedRecipients
+      );
+
+      setSelectedTask({
+        ...task,
+        status: "CHANGES REQUESTED",
+        feedback,
+        reviewComment: feedback,
+        changeRecipientIds: selectedRecipients,
+        changeRecipientNames: recipientNames,
+      });
+
+      setShowChangesModal(false);
+      setReviewFeedback("");
+      setChangeRecipientIds([]);
+
+      alert(
+        selectedRecipients.length === availableRecipientIds.length
+          ? "Changes requested from all selected team members."
+          : "Changes requested from the selected employee(s)."
+      );
+    } catch (error) {
+      console.error(
+        "Request changes error:",
+        error
+      );
+      alert(
+        "Unable to request changes. Please try again."
+      );
+    } finally {
+      setReviewLoading(null);
+    }
+  }
+
+  /*
+   * DEADLINE NOTIFICATIONS
+   */
+  useEffect(() => {
+    if (!authorized || !currentUser) return;
+
+    async function checkDeadlines() {
+      const now = Date.now();
+
+      for (const task of tasks) {
+        if (!task.deadline || isFinalTaskStatus(task.status)) continue;
+
+        const deadline = new Date(task.deadline).getTime();
+        if (!Number.isFinite(deadline)) continue;
+
+        const remaining = deadline - now;
+        let kind: "24h" | "1h" | "overdue" | null = null;
+        let title = "";
+        let notificationMessage = "";
+        let priority = "important";
+
+        if (remaining > 0 && remaining <= 60 * 60 * 1000) {
+          kind = "1h";
+          title = "Task deadline in 1 hour";
+          notificationMessage = `"${task.title || "Untitled task"}" is due in less than 1 hour (${task.deadlineTime || "deadline time"}).`;
+          priority = "urgent";
+        } else if (remaining > 60 * 60 * 1000 && remaining <= 24 * 60 * 60 * 1000) {
+          kind = "24h";
+          title = "Task deadline approaching";
+          notificationMessage = `"${task.title || "Untitled task"}" is due within 24 hours (${task.deadlineTime || "deadline time"}).`;
+        } else if (remaining <= 0) {
+          kind = "overdue";
+          title = "Task deadline passed";
+          notificationMessage = `The deadline for "${task.title || "Untitled task"}" has passed. Current status: ${task.status || "unknown"}.`;
+          priority = "urgent";
+        }
+
+        if (!kind) continue;
+
+        const notificationId = `deadline_${task.id}_${kind}_${currentUser.uid}`;
+
+        try {
+          await setDoc(
+            doc(db, "notifications", notificationId),
+            {
+              userId: currentUser.uid,
+              recipientId: currentUser.uid,
+              senderId: currentUser.uid,
+              senderName: "The Ant Media System",
+              title,
+              message: notificationMessage,
+              type: "deadline",
+              priority,
+              read: false,
+              taskId: task.id,
+              taskTitle: task.title || "Untitled task",
+              link: "/founder/tasks",
+              createdAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } catch (error) {
+          console.error("Deadline notification error:", error);
+        }
+      }
+    }
+
+    checkDeadlines();
+    const timer = window.setInterval(checkDeadlines, 60_000);
+    return () => window.clearInterval(timer);
+  }, [authorized, currentUser, tasks]);
+
+  /*
+   * DELETE / RECYCLE BIN
+   *
+   * Founder can delete a task only after the work has been approved.
+   * APPROVED and COMPLETED tasks are moved to the founder recycle bin first.
+   * Nothing is permanently removed from Firestore during this action.
+   */
+  async function moveTaskToRecycleBin(
+    task: Task,
+    deletedBy: string,
+    deletedByName: string,
+    ownerUserId: string,
+    ownerRole: "founder" | "employee" | "intern",
+    deletionSource: "founder" | "employee"
+  ) {
+    const recyclePayload = {
+      ...task,
+      originalTaskId: task.id,
+      deletedAt: serverTimestamp(),
+      deletedBy,
+      deletedByName,
+      ownerUserId,
+      ownerRole,
+      deletionSource,
+      recycleBinType:
+        ownerRole === "founder"
+          ? "founder"
+          : "employee",
+      permanentlyDeleted: false,
+    };
+
+    const recycleRef = await addDoc(
+      collection(db, "recycleBinTasks"),
+      recyclePayload
+    );
+
+    await deleteDoc(doc(db, "tasks", task.id));
+
+    return recycleRef.id;
+  }
+
+  async function handleDeleteTask(task: Task) {
+    const normalized = normalizeStatus(task.status);
+
+    if (normalized !== "approved" && normalized !== "completed") {
+      alert("Delete Task is available only after the Founder approves the work.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Move "${task.title || "Untitled task"}" to the Recycle Bin?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const recycleId = await moveTaskToRecycleBin(
+        task,
+        currentUser?.uid || "",
+        currentUser?.name || currentUser?.email || "Founder",
+        currentUser?.uid || "",
+        "founder",
+        "founder"
+      );
+
+      console.info("Task moved to founder recycle bin:", recycleId);
+      setSelectedTask(null);
+      alert("Task moved to the Founder Recycle Bin.");
+    } catch (error) {
+      console.error("Delete task / recycle bin error:", error);
+      alert("Unable to move the task to the Recycle Bin. The original task was kept safe.");
+    }
+  }
+
+  async function reviewEmployeeDeleteRequest(
+    task: Task,
+    decision: "approved" | "rejected"
+  ) {
+    if (!currentUser?.uid) return;
+
+    if (task.deleteRequestStatus !== "pending") {
+      alert("There is no pending delete request for this task.");
+      return;
+    }
+
+    try {
+      setDeleteReviewLoading(task.id);
+
+      const employeeId = task.deleteRequestedBy || task.assignedTo || "";
+      const employee = users.find((user) => user.id === employeeId);
+      const employeeName =
+        task.deleteRequestedByName ||
+        employee?.name ||
+        employee?.email ||
+        task.assignedToName ||
+        "Employee";
+
+      const taskTitle = task.title || "Untitled task";
+
+      if (decision === "approved") {
+        await updateDoc(doc(db, "tasks", task.id), {
+          deleteRequestStatus: "approved",
+          deleteReviewedAt: serverTimestamp(),
+          deleteReviewedBy: currentUser.uid,
+          deleteReviewedByName:
+            currentUser.name || currentUser.email || "Founder",
+          deleteReviewMessage: `Founder approved ${employeeName} to delete the task.`,
+          updatedAt: serverTimestamp(),
+        });
+
+        if (employeeId) {
+          await addDoc(collection(db, "notifications"), {
+            userId: employeeId,
+            recipientId: employeeId,
+            recipientEmail: employee?.email || "",
+            senderId: currentUser.uid,
+            senderName:
+              currentUser.name || currentUser.email || "Founder",
+            title: "Founder approved task deletion",
+            message: `Founder approved you can delete the task "${taskTitle}". Task details: ${task.description || "No description provided."} Deadline: ${formatDate(task.deadlineDate || task.deadline)} at ${task.deadlineTime || "Not set"}. You can now delete this task from your task history.`,
+            type: "task_delete_approved",
+            priority: "important",
+            read: false,
+            taskId: task.id,
+            taskTitle,
+            link: "/employee/tasks",
+            createdAt: serverTimestamp(),
+          });
+        }
+
+        setSelectedTask({
+          ...task,
+          deleteRequestStatus: "approved",
+          deleteReviewedBy: currentUser.uid,
+          deleteReviewedByName:
+            currentUser.name || currentUser.email || "Founder",
+        });
+
+        alert(`Delete permission approved for ${employeeName}.`);
+      } else {
+        const rejectionMessage =
+          `Founder rejected your delete request for the task "${taskTitle}". Please continue working on this task and complete it.`;
+
+        await updateDoc(doc(db, "tasks", task.id), {
+          deleteRequestStatus: "rejected",
+          deleteReviewedAt: serverTimestamp(),
+          deleteReviewedBy: currentUser.uid,
+          deleteReviewedByName:
+            currentUser.name || currentUser.email || "Founder",
+          deleteReviewMessage: rejectionMessage,
+          updatedAt: serverTimestamp(),
+        });
+
+        if (employeeId) {
+          await addDoc(collection(db, "notifications"), {
+            userId: employeeId,
+            recipientId: employeeId,
+            recipientEmail: employee?.email || "",
+            senderId: currentUser.uid,
+            senderName:
+              currentUser.name || currentUser.email || "Founder",
+            title: "Founder rejected task deletion",
+            message: rejectionMessage,
+            type: "task_delete_rejected",
+            priority: "important",
+            read: false,
+            taskId: task.id,
+            taskTitle,
+            link: "/employee/tasks",
+            createdAt: serverTimestamp(),
+          });
+        }
+
+        setSelectedTask({
+          ...task,
+          deleteRequestStatus: "rejected",
+          deleteReviewedBy: currentUser.uid,
+          deleteReviewedByName:
+            currentUser.name || currentUser.email || "Founder",
+          deleteReviewMessage: rejectionMessage,
+        });
+
+        alert(`Delete request rejected for ${employeeName}.`);
+      }
+    } catch (error) {
+      console.error("Delete permission review error:", error);
+      alert("Unable to process the delete request. Please try again.");
+    } finally {
+      setDeleteReviewLoading(null);
+    }
+  }
+
+  /*
+   * EXPORT TASKS
+   */
+  function exportTasks() {
+    const headers = [
+      "Title",
+      "Assigned To",
+      "Client",
+      "Department",
+      "Task Type",
+      "Priority",
+      "Status",
+      "Start Date",
+      "Deadline",
+    ];
+
+    const rows = filteredTasks.map(
+      (task) => [
+        task.title || "",
+        task.assignedToName || "",
+        task.clientName ||
+          task.client ||
+          "",
+        task.department || "",
+        task.taskType || "",
+        task.priority || "",
+        task.status || "",
+        task.startDate || "",
+        task.deadline || "",
+      ]
+    );
+
+    const csv = [
+      headers,
+      ...rows,
+    ]
+      .map((row) =>
+        row
+          .map((value) =>
+            `"${String(value).replace(
+              /"/g,
+              '""'
+            )}"`
+          )
+          .join(",")
+      )
+      .join("\n");
+
+    const blob =
+      new Blob([csv], {
+        type: "text/csv;charset=utf-8;",
+      });
+
+    const url =
+      URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
+
+    link.href = url;
+    link.download =
+      `ant-media-tasks-${new Date()
+        .toISOString()
+        .slice(0, 10)}.csv`;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+  }
+
+  /*
+   * LOADING
+   */
+  if (checkingAuth) {
+    return (
+      <main className="min-h-screen bg-[#050507] text-white flex items-center justify-center">
+        <div className="flex items-center gap-3 text-white/50">
+          <Loader2
+            size={20}
+            className="animate-spin"
+          />
+          Checking founder workspace...
+        </div>
+      </main>
+    );
+  }
+
+  /*
+   * ACCESS DENIED
+   */
+  if (!authorized) {
+    return (
+      <main className="min-h-screen bg-[#050507] text-white flex items-center justify-center px-6">
+        <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-center">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/10 text-red-300">
+            <AlertCircle size={26} />
+          </div>
+
+          <h1 className="text-2xl font-semibold">
+            Founder access required
+          </h1>
+
+          <p className="mt-3 text-sm leading-6 text-white/40">
+            Please sign in to the founder
+            workspace to manage tasks.
+          </p>
+
+          <button
+            onClick={() => {
+              window.location.href = "/";
+            }}
+            className="mt-7 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black"
+          >
+            Back to login
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-[#050507] text-white">
+      {/* Background */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute left-[10%] top-[-10%] h-[500px] w-[500px] rounded-full bg-violet-600/10 blur-[140px]" />
+
+        <div className="absolute right-[-10%] top-[25%] h-[500px] w-[500px] rounded-full bg-blue-600/10 blur-[140px]" />
+      </div>
+
+      {/* Header */}
+      <header className="sticky top-0 z-30 border-b border-white/[0.07] bg-[#050507]/85 backdrop-blur-2xl">
+        <div className="mx-auto flex max-w-[1700px] items-center justify-between px-6 py-5 lg:px-10">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => {
+                window.location.href =
+                  "/founder";
+              }}
+              className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] transition hover:bg-white/[0.07]"
+            >
+              <ArrowLeft size={20} />
+            </button>
+
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-violet-300/80">
+                Founder / Management
+              </p>
+
+              <h1 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
+                Task Management
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                window.location.reload();
+              }}
+              className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-white/70 transition hover:bg-white/[0.07] md:flex"
+            >
+              <RefreshCw size={16} />
+              Refresh
+            </button>
+
+            <button
+              onClick={exportTasks}
+              className="hidden items-center gap-2 rounded-xl border border-violet-500/20 bg-violet-500/[0.05] px-4 py-3 text-sm font-medium text-violet-200 transition hover:bg-violet-500/10 md:flex"
+            >
+              <Download size={16} />
+              Export
+            </button>
+
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-blue-500 text-sm font-bold shadow-lg shadow-violet-500/20">
+              A
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="relative mx-auto max-w-[1700px] px-6 py-10 lg:px-10">
+        {/* Hero */}
+        <section className="mb-10">
+          <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-end">
+            <div>
+              <div className="mb-5 flex items-center gap-3 text-violet-300">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10">
+                  <FileText size={19} />
+                </div>
+
+                <span className="text-sm font-medium">
+                  Work allocation & delivery
+                </span>
+              </div>
+
+              <h2 className="max-w-4xl text-5xl font-semibold tracking-[-0.05em] sm:text-6xl">
+                Keep every task
+                <br />
+                <span className="bg-gradient-to-r from-white via-violet-200 to-blue-300 bg-clip-text text-transparent">
+                  moving forward.
+                </span>
+              </h2>
+
+              <p className="mt-5 max-w-2xl text-base leading-7 text-white/45">
+                Assign work, monitor progress,
+                review submissions and keep the
+                entire Ant Media team aligned from
+                one place.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                resetForm();
+                setShowCreateModal(true);
+              }}
+              className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-blue-500 px-6 py-4 text-sm font-semibold shadow-xl shadow-violet-500/20 transition hover:scale-[1.02]"
+            >
+              <Plus size={19} />
+              Create Task
+            </button>
+          </div>
+        </section>
+
+        {/* Stats */}
+        <section className="grid grid-cols-2 gap-4 lg:grid-cols-6">
+          {[
+            {
+              label: "TOTAL",
+              value: totalTasks,
+              icon: FileText,
+              note: "All workspace tasks",
+            },
+            {
+              label: "ACTIVE",
+              value: activeTasks,
+              icon: Zap,
+              note: "Currently active",
+            },
+            {
+              label: "REVIEW",
+              value: reviewTasks,
+              icon: Clock3,
+              note: "Awaiting review",
+            },
+            {
+              label: "OVERDUE",
+              value: overdueTasks,
+              icon: AlertCircle,
+              note: "Needs attention",
+            },
+            {
+              label: "COMPLETED",
+              value: completedTasks,
+              icon: CheckCircle2,
+              note: "Successfully delivered",
+            },
+            {
+              label: "URGENT",
+              value: urgentTasks,
+              icon: AlertCircle,
+              note: "High priority work",
+            },
+          ].map((item) => {
+            const Icon =
+              item.icon;
+
+            return (
+              <div
+                key={item.label}
+                className="rounded-3xl border border-white/[0.08] bg-white/[0.025] p-6 backdrop-blur-xl"
+              >
+                <div className="mb-6 flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                  <Icon size={20} />
+                </div>
+
+                <p className="text-[11px] font-semibold tracking-wider text-white/35">
+                  {item.label}
+                </p>
+
+                <p
+                  className={`mt-2 text-3xl font-semibold ${
+                    item.label ===
+                      "OVERDUE" &&
+                    item.value > 0
+                      ? "text-red-300"
+                      : ""
+                  }`}
+                >
+                  {item.value}
+                </p>
+
+                <p className="mt-2 text-xs text-white/30">
+                  {item.note}
+                </p>
+              </div>
+            );
+          })}
+        </section>
+
+        {/* Search / Filters */}
+        <section className="mt-8 rounded-3xl border border-white/[0.08] bg-white/[0.025] p-4 backdrop-blur-xl">
+          <div className="flex flex-col gap-3 lg:flex-row">
+            <div className="relative flex-1">
+              <Search
+                size={18}
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25"
+              />
+
+              <input
+                value={search}
+                onChange={(event) =>
+                  setSearch(
+                    event.target.value
+                  )
+                }
+                placeholder="Search tasks, people, clients..."
+                className="h-12 w-full rounded-xl border border-white/[0.07] bg-black/20 pl-11 pr-4 text-sm text-white outline-none placeholder:text-white/25 focus:border-violet-500/40"
+              />
+            </div>
+
+            <div className="relative">
+              <Filter
+                size={16}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/30"
+              />
+
+              <select
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(
+                    event.target.value
+                  )
+                }
+                className="h-12 min-w-[180px] appearance-none rounded-xl border border-white/[0.07] bg-black/20 pl-10 pr-8 text-sm text-white outline-none"
+              >
+                <option
+                  value="ALL"
+                  className="bg-[#111]"
+                >
+                  All statuses
+                </option>
+
+                {STATUSES.map(
+                  (status) => (
+                    <option
+                      key={status}
+                      value={status}
+                      className="bg-[#111]"
+                    >
+                      {status}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
+            <select
+              value={priorityFilter}
+              onChange={(event) =>
+                setPriorityFilter(
+                  event.target.value
+                )
+              }
+              className="h-12 min-w-[180px] rounded-xl border border-white/[0.07] bg-black/20 px-4 text-sm text-white outline-none"
+            >
+              <option
+                value="ALL"
+                className="bg-[#111]"
+              >
+                All priorities
+              </option>
+
+              {PRIORITIES.map(
+                (priority) => (
+                  <option
+                    key={priority}
+                    value={priority}
+                    className="bg-[#111]"
+                  >
+                    {priority}
+                  </option>
+                )
+              )}
+            </select>
+
+            <button
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("ALL");
+                setPriorityFilter("ALL");
+              }}
+              className="flex h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-5 text-sm font-medium text-white/60 transition hover:bg-white/[0.07]"
+            >
+              <RefreshCw size={16} />
+              Reset
+            </button>
+          </div>
+        </section>
+
+        {/* Task List */}
+        <section className="mt-6 overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.025] backdrop-blur-xl">
+          <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-5">
+            <div>
+              <h3 className="text-lg font-semibold">
+                All workspace tasks
+              </h3>
+
+              <p className="mt-1 text-xs text-white/35">
+                {filteredTasks.length} task
+                {filteredTasks.length === 1
+                  ? ""
+                  : "s"} shown
+              </p>
+            </div>
+
+            <div className="hidden items-center gap-2 text-xs text-white/30 sm:flex">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              Live Firestore feed
+            </div>
+          </div>
+
+          {filteredTasks.length === 0 ? (
+            <div className="flex min-h-[350px] flex-col items-center justify-center px-6 text-center">
+              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-white/30">
+                <FileText size={27} />
+              </div>
+
+              <h3 className="text-lg font-semibold">
+                No tasks found
+              </h3>
+
+              <p className="mt-2 max-w-md text-sm leading-6 text-white/35">
+                Create a task and assign it to
+                a team member. The task will
+                immediately appear here.
+              </p>
+
+              <button
+                onClick={() => {
+                  resetForm();
+                  setShowCreateModal(
+                    true
+                  );
+                }}
+                className="mt-6 flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black"
+              >
+                <Plus size={16} />
+                Create first task
+              </button>
+            </div>
+          ) : (
+            <div className="divide-y divide-white/[0.06]">
+              {filteredTasks.map(
+                (task) => (
+                  <button
+                    key={task.id}
+                    onClick={() =>
+                      setSelectedTask(
+                        task
+                      )
+                    }
+                    className="group block w-full p-5 text-left transition hover:bg-white/[0.025] sm:p-6"
+                  >
+                    <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-base font-semibold text-white">
+                            {task.title ||
+                              "Untitled task"}
+                          </h4>
+
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${getPriorityClass(
+                              task.priority
+                            )}`}
+                          >
+                            {task.priority ||
+                              "MEDIUM"}
+                          </span>
+
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${getStatusClass(
+                              task.status
+                            )}`}
+                          >
+                            {task.status ||
+                              "TO DO"}
+                          </span>
+
+                          {task.deleteRequestStatus === "pending" && (
+                            <span className="rounded-full border border-orange-500/25 bg-orange-500/10 px-2.5 py-1 text-[10px] font-semibold text-orange-200">
+                              DELETE REQUEST
+                            </span>
+                          )}
+
+                          {task.deleteRequestStatus === "approved" && (
+                            <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-200">
+                              DELETE APPROVED
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="mt-2 line-clamp-2 max-w-3xl text-sm leading-6 text-white/40">
+                          {task.description ||
+                            "No description provided."}
+                        </p>
+
+                        <div className="mt-4 flex flex-wrap gap-4 text-xs text-white/30">
+                          <span className="flex items-center gap-1.5">
+                            <User
+                              size={13}
+                            />
+                            {task.assignmentType === "team"
+                              ? `Team · ${task.teamMemberIds?.length || 0} members`
+                              : task.assignedToName || "Unassigned"}
+                          </span>
+
+                          <span className="flex items-center gap-1.5">
+                            <Users
+                              size={13}
+                            />
+                            {task.department ||
+                              "Management"}
+                          </span>
+
+                          <span className="flex items-center gap-1.5">
+                            <Calendar
+                              size={13}
+                            />
+                            {formatDate(
+                              task.deadlineDate ||
+                                task.deadline
+                            )}
+                          </span>
+
+                          {task.clientName && (
+                            <span>
+                              {task.clientName}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {task.calendarReminder && (
+                          <span className="flex items-center gap-1.5 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-xs text-violet-300">
+                            <Calendar
+                              size={13}
+                            />
+                            Calendar
+                          </span>
+                        )}
+
+                        {task.referenceDriveUrl && (
+                          <span className="flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+                            <FileText size={13} />
+                            Drive reference
+                          </span>
+                        )}
+
+                        <span className="text-white/20 transition group-hover:text-white/60">
+                          →
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                )
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* CREATE TASK MODAL */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+          <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b0b0f] shadow-2xl shadow-violet-950/30">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-white/[0.07] p-6">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-300">
+                  Founder Workspace
+                </p>
+
+                <h2 className="mt-2 text-2xl font-semibold">
+                  Create New Task
+                </h2>
+
+                <p className="mt-1 text-sm text-white/40">
+                  Assign a new piece of work to
+                  your team.
+                </p>
+              </div>
+
+              <button
+                onClick={() =>
+                  setShowCreateModal(
+                    false
+                  )
+                }
+                className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/50 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form
+              onSubmit={
+                handleCreateTask
+              }
+              className="overflow-y-auto p-6"
+            >
+              {message && (
+                <div className="mb-5 flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-300">
+                  <Check
+                    size={18}
+                  />
+                  {message}
+                </div>
+              )}
+
+              {errorMessage && (
+                <div className="mb-5 flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
+                  <AlertCircle
+                    size={18}
+                  />
+                  {errorMessage}
+                </div>
+              )}
+
+              {/* Assignment mode */}
+              <div className="mb-6 rounded-2xl border border-violet-500/20 bg-violet-500/[0.04] p-4">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                  Assignment Type
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAssignmentType("single");
+                      setTeamMemberIds([]);
+                      setTeamLeadId("");
+                      setSubmitterMode("selected");
+                      setSubmitterId("");
+                    }}
+                    className={`rounded-xl border px-4 py-4 text-left transition ${assignmentType === "single" ? "border-violet-500/40 bg-violet-500/15 text-violet-100" : "border-white/10 bg-white/[0.02] text-white/50 hover:bg-white/[0.05]"}`}
+                  >
+                    <p className="text-sm font-semibold">Single Employee</p>
+                    <p className="mt-1 text-[11px] text-white/35">Normal individual task</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAssignmentType("team");
+                      setForm({ ...form, assignedTo: "" });
+                    }}
+                    className={`rounded-xl border px-4 py-4 text-left transition ${assignmentType === "team" ? "border-blue-500/40 bg-blue-500/15 text-blue-100" : "border-white/10 bg-white/[0.02] text-white/50 hover:bg-white/[0.05]"}`}
+                  >
+                    <p className="text-sm font-semibold">Create Team</p>
+                    <p className="mt-1 text-[11px] text-white/35">Shared task for multiple members</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Title */}
+              <div>
+                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                  Task Title *
+                </label>
+
+                <input
+                  required
+                  value={form.title}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      title:
+                        event.target
+                          .value,
+                    })
+                  }
+                  placeholder="e.g. Build Ant Media Landing Page"
+                  className="h-14 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none placeholder:text-white/20 focus:border-violet-500/50"
+                />
+              </div>
+
+              {/* Description */}
+              <div className="mt-5">
+                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                  Description
+                </label>
+
+                <textarea
+                  value={
+                    form.description
+                  }
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      description:
+                        event.target
+                          .value,
+                    })
+                  }
+                  placeholder="Describe what needs to be completed..."
+                  rows={4}
+                  className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white outline-none placeholder:text-white/20 focus:border-violet-500/50"
+                />
+              </div>
+
+              {/* Assignment */}
+              {assignmentType === "single" ? (
+                <div className="mt-5">
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                    Assign To *
+                  </label>
+                  <select
+                    required
+                    value={form.assignedTo}
+                    onChange={(event) =>
+                      setForm({ ...form, assignedTo: event.target.value })
+                    }
+                    className="h-14 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none focus:border-violet-500/50"
+                  >
+                    <option value="" className="bg-[#111]">Select team member</option>
+                    {users.map((user) => (
+                      <option key={user.id} value={user.id} className="bg-[#111]">
+                        {user.name || user.email} · {user.role}
+                      </option>
+                    ))}
+                  </select>
+
+                  {selectedSingleUser && (
+                    <div className="mt-3 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-300/70">Selected Employee</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                        <div><p className="text-[10px] text-white/25">Name</p><p className="mt-1 text-sm font-semibold text-white/80">{selectedSingleUser.name || selectedSingleUser.email}</p></div>
+                        <div><p className="text-[10px] text-white/25">Dep</p><p className="mt-1 text-sm font-semibold text-white/80">{selectedSingleUser.department || "Not set"}</p></div>
+                        <div><p className="text-[10px] text-white/25">Role</p><p className="mt-1 text-sm font-semibold text-white/80">{selectedSingleUser.role || "Not set"}</p></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-5 rounded-2xl border border-blue-500/20 bg-blue-500/[0.04] p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-300/80">Team Members</p>
+                      <p className="mt-1 text-xs text-white/35">Select the employees who will work on this shared task.</p>
+                    </div>
+                    <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-[10px] font-semibold text-blue-200">{selectedTeamMembers.length} selected</span>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    {users.map((user) => {
+                      const checked = teamMemberIds.includes(user.id);
+                      return (
+                        <button
+                          type="button"
+                          key={user.id}
+                          onClick={() => {
+                            const next = checked ? teamMemberIds.filter((id) => id !== user.id) : [...teamMemberIds, user.id];
+                            setTeamMemberIds(next);
+                            if (user.id === teamLeadId && checked) setTeamLeadId("");
+                            if (user.id === submitterId && checked) setSubmitterId("");
+                          }}
+                          className={`w-full rounded-xl border p-3 text-left transition ${checked ? "border-violet-500/30 bg-violet-500/10" : "border-white/[0.07] bg-black/10 hover:bg-white/[0.03]"}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={`flex h-5 w-5 items-center justify-center rounded-md border ${checked ? "border-violet-400 bg-violet-500 text-white" : "border-white/20 text-transparent"}`}><Check size={13} /></span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-white/85">{user.name || user.email}</p>
+                              <p className="mt-1 text-[10px] text-white/30">Dep: {user.department || "Not set"} · Role: {user.role || "Not set"}</p>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {selectedTeamMembers.length > 0 && (
+                    <div className="mt-5 grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">Team Lead *</label>
+                        <select
+                          required
+                          value={teamLeadId}
+                          onChange={(event) => setTeamLeadId(event.target.value)}
+                          className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none focus:border-amber-500/40"
+                        >
+                          <option value="" className="bg-[#111]">Select Team Lead</option>
+                          {selectedTeamMembers.map((user) => (
+                            <option key={user.id} value={user.id} className="bg-[#111]">{user.name || user.email}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">Who is going to submit? *</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button type="button" onClick={() => { setSubmitterMode("selected"); setSubmitterId(""); }} className={`rounded-xl border px-3 py-3 text-xs font-semibold ${submitterMode === "selected" ? "border-violet-500/40 bg-violet-500/15 text-violet-200" : "border-white/10 bg-white/[0.02] text-white/40"}`}>Selected Employee</button>
+                          <button type="button" onClick={() => { setSubmitterMode("anybody"); setSubmitterId(""); }} className={`rounded-xl border px-3 py-3 text-xs font-semibold ${submitterMode === "anybody" ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-200" : "border-white/10 bg-white/[0.02] text-white/40"}`}>Anybody</button>
+                        </div>
+                        {submitterMode === "selected" && (
+                          <select required value={submitterId} onChange={(event) => setSubmitterId(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none focus:border-violet-500/40">
+                            <option value="" className="bg-[#111]">Select submitter</option>
+                            {selectedTeamMembers.map((user) => <option key={user.id} value={user.id} className="bg-[#111]">{user.name || user.email}</option>)}
+                          </select>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedTeamLead && (
+                    <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-300/70">Team Lead</p>
+                      <p className="mt-2 text-sm font-semibold text-white/85">{selectedTeamLead.name || selectedTeamLead.email} <span className="text-amber-200">(TL)</span></p>
+                      <p className="mt-1 text-[11px] text-white/35">Dep: {selectedTeamLead.department || "Not set"} · Role: {selectedTeamLead.role || "Not set"}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Department + Type */}
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                    Department
+                  </label>
+
+                  <select
+                    value={
+                      form.department
+                    }
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        department:
+                          event.target
+                            .value,
+                      })
+                    }
+                    className="h-14 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none focus:border-violet-500/50"
+                  >
+                    {DEPARTMENTS.map(
+                      (department) => (
+                        <option
+                          key={
+                            department
+                          }
+                          value={
+                            department
+                          }
+                          className="bg-[#111]"
+                        >
+                          {department}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                    Task Type
+                  </label>
+
+                  <select
+                    value={
+                      form.taskType
+                    }
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        taskType:
+                          event.target
+                            .value,
+                      })
+                    }
+                    className="h-14 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none focus:border-violet-500/50"
+                  >
+                    {TASK_TYPES.map(
+                      (type) => (
+                        <option
+                          key={type}
+                          value={type}
+                          className="bg-[#111]"
+                        >
+                          {type}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              {/* Priority */}
+              <div className="mt-5">
+                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                  Priority
+                </label>
+
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                  {PRIORITIES.map(
+                    (priority) => (
+                      <button
+                        type="button"
+                        key={
+                          priority
+                        }
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            priority,
+                          })
+                        }
+                        className={`h-12 rounded-xl border text-xs font-semibold transition ${
+                          form.priority ===
+                          priority
+                            ? getPriorityClass(
+                                priority
+                              )
+                            : "border-white/10 bg-white/[0.02] text-white/40 hover:bg-white/[0.05]"
+                        }`}
+                      >
+                        {priority}
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div className="mt-5 grid gap-4 md:grid-cols-3">
+                <div>
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                    Start Date
+                  </label>
+
+                  <input
+                    type="date"
+                    value={
+                      form.startDate
+                    }
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        startDate:
+                          event.target
+                            .value,
+                      })
+                    }
+                    className="h-14 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none focus:border-violet-500/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                    Deadline *
+                  </label>
+
+                  <input
+                    required
+                    type="date"
+                    value={
+                      form.deadlineDate
+                    }
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        deadlineDate:
+                          event.target
+                            .value,
+                      })
+                    }
+                    className="h-14 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none focus:border-violet-500/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                    Deadline Time
+                  </label>
+
+                  <input
+                    type="time"
+                    value={
+                      form.deadlineTime
+                    }
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        deadlineTime:
+                          event.target
+                            .value,
+                      })
+                    }
+                    className="h-14 w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 text-sm text-white outline-none focus:border-violet-500/50"
+                  />
+                </div>
+              </div>
+
+              {/* EMPLOYEE DELETE REQUEST */}
+              {selectedTask?.deleteRequestStatus === "pending" && (
+                <div className="mt-4 rounded-2xl border border-orange-500/25 bg-orange-500/[0.06] p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-orange-300/80">
+                        Employee delete request
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-white/80">
+                        {selectedTask!.deleteRequestedByName || selectedTask!.assignedToName || "Employee"} requested permission to delete this task.
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-white/40">
+                        This task is not completed. The employee cannot delete it unless the Founder approves the request.
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-orange-500/25 bg-orange-500/10 px-3 py-1.5 text-[10px] font-semibold text-orange-200">
+                      PENDING
+                    </span>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-white/[0.07] bg-black/20 p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-white/30">
+                      Task details
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-white/75">
+                      {selectedTask!.title || "Untitled task"}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-white/35">
+                      {selectedTask!.description || "No description provided."}
+                    </p>
+                    <p className="mt-2 text-[11px] text-white/30">
+                      Deadline: {formatDate(selectedTask!.deadlineDate || selectedTask!.deadline)} · {selectedTask!.deadlineTime || "Not set"}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => reviewEmployeeDeleteRequest(selectedTask!, "approved")}
+                      disabled={deleteReviewLoading === selectedTask!.id}
+                      className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-3 text-sm font-semibold disabled:opacity-50"
+                    >
+                      {deleteReviewLoading === selectedTask!.id ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Check size={16} />
+                      )}
+                      Approve Delete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => reviewEmployeeDeleteRequest(selectedTask!, "rejected")}
+                      disabled={deleteReviewLoading === selectedTask!.id}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/[0.07] px-4 py-3 text-sm font-semibold text-red-200 disabled:opacity-50"
+                    >
+                      <X size={16} />
+                      Reject Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {selectedTask?.deleteRequestStatus === "approved" && (
+                <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-300/80">
+                    Delete permission approved
+                  </p>
+                  <p className="mt-2 text-sm text-white/60">
+                    {selectedTask!.deleteRequestedByName || selectedTask!.assignedToName || "The employee"} may now delete this task from their workspace.
+                  </p>
+                </div>
+              )}
+
+              {selectedTask?.deleteRequestStatus === "rejected" && (
+                <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/[0.05] p-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-red-300/80">
+                    Delete permission rejected
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-white/60">
+                    {selectedTask?.deleteReviewMessage || "The employee must continue working on this task."}
+                  </p>
+                </div>
+              )}
+
+              {/* Google Drive Reference */}
+              <div className="mt-5">
+                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                  Google Drive Reference
+                </label>
+
+                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-300">
+                      <FileText size={19} />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-white/85">
+                        Add task reference files from Google Drive
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-white/35">
+                        Upload your reference files manually into the
+                        <span className="text-white/55"> Task Reference </span>
+                        folder in Google Drive, then paste the folder or file link below.
+                      </p>
+                    </div>
+                  </div>
+
+                  <input
+                    type="url"
+                    value={form.referenceDriveUrl}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        referenceDriveUrl: event.target.value,
+                      })
+                    }
+                    placeholder="https://drive.google.com/drive/folders/..."
+                    className="mt-4 h-14 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none placeholder:text-white/20 focus:border-emerald-500/40"
+                  />
+
+                  <p className="mt-2 text-[11px] leading-5 text-white/25">
+                    Recommended: share the reference folder with the assigned team member as Viewer.
+                  </p>
+                </div>
+              </div>
+
+              {/* Calendar */}
+              <div className="mt-5 rounded-2xl border border-violet-500/20 bg-violet-500/[0.05] p-5">
+                <label className="flex cursor-pointer items-start gap-4">
+                  <input
+                    type="checkbox"
+                    checked={
+                      form.calendarReminder
+                    }
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        calendarReminder:
+                          event.target
+                            .checked,
+                      })
+                    }
+                    className="mt-1 h-4 w-4 accent-violet-500"
+                  />
+
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Calendar
+                        size={17}
+                        className="text-violet-300"
+                      />
+
+                      <span className="text-sm font-semibold">
+                        Add deadline reminder
+                      </span>
+                    </div>
+
+                    <p className="mt-1 text-xs leading-5 text-white/35">
+                      Creates a calendar event
+                      record for this task.
+                      Google Calendar API
+                      synchronization will use
+                      this event later.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Smart assignment */}
+              <div className="mt-4 rounded-2xl border border-blue-500/15 bg-blue-500/[0.04] p-5">
+                <div className="flex gap-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-300">
+                    <Sparkles
+                      size={18}
+                    />
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-semibold">
+                      Smart assignment
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-white/35">
+                      The assigned team member
+                      will immediately receive
+                      an in-app notification with
+                      the task, priority and
+                      deadline.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="mt-6 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowCreateModal(
+                      false
+                    )
+                  }
+                  className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm font-semibold text-white/60 transition hover:bg-white/[0.07]"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="flex flex-[1.5] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-4 text-sm font-semibold shadow-lg shadow-violet-500/20 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {creating ? (
+                    <>
+                      <Loader2
+                        size={18}
+                        className="animate-spin"
+                      />
+
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Check
+                        size={18}
+                      />
+                      Create & Assign
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* TASK DETAILS MODAL */}
+      {selectedTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#0b0b0f] shadow-2xl">
+            <div className="flex items-start justify-between border-b border-white/[0.07] p-6">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-300">
+                  Task Details
+                </p>
+
+                <h2 className="mt-2 text-2xl font-semibold">
+                  {selectedTask.title}
+                </h2>
+              </div>
+
+              <button
+                onClick={() =>
+                  setSelectedTask(null)
+                }
+                className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03]"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-6">
+              <div className="flex flex-wrap gap-2">
+                <span
+                  className={`rounded-full border px-3 py-2 text-xs font-semibold ${getStatusClass(
+                    selectedTask.status
+                  )}`}
+                >
+                  {selectedTask.status ||
+                    "TO DO"}
+                </span>
+
+                <span
+                  className={`rounded-full border px-3 py-2 text-xs font-semibold ${getPriorityClass(
+                    selectedTask.priority
+                  )}`}
+                >
+                  {selectedTask.priority ||
+                    "MEDIUM"}
+                </span>
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-white/35">
+                  Description
+                </p>
+
+                <p className="mt-3 text-sm leading-7 text-white/65">
+                  {selectedTask.description ||
+                    "No description provided."}
+                </p>
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {[
+                  {
+                    label: "ASSIGNED TO",
+                    value:
+                      selectedTask.assignedToName ||
+                      "Unassigned",
+                    icon: User,
+                  },
+                  {
+                    label: "DEPARTMENT",
+                    value:
+                      selectedTask.department ||
+                      "Management",
+                    icon: Users,
+                  },
+                  {
+                    label: "CLIENT",
+                    value:
+                      selectedTask.clientName ||
+                      selectedTask.client ||
+                      "Internal / No client",
+                    icon: Users,
+                  },
+                  {
+                    label: "TASK TYPE",
+                    value:
+                      selectedTask.taskType ||
+                      "Other",
+                    icon: FileText,
+                  },
+                  {
+                    label: "START DATE",
+                    value:
+                      formatDate(
+                        selectedTask.startDate
+                      ),
+                    icon: Calendar,
+                  },
+                  {
+                    label: "DEADLINE",
+                    value:
+                      `${formatDate(
+                        selectedTask.deadlineDate ||
+                          selectedTask.deadline
+                      )} • ${
+                        selectedTask.deadlineTime ||
+                        ""
+                      }`,
+                    icon: Clock3,
+                  },
+                ].map((item) => {
+                  const Icon =
+                    item.icon;
+
+                  return (
+                    <div
+                      key={item.label}
+                      className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5"
+                    >
+                      <div className="flex items-center gap-2 text-white/30">
+                        <Icon
+                          size={15}
+                        />
+
+                        <span className="text-[10px] font-semibold tracking-wider">
+                          {item.label}
+                        </span>
+                      </div>
+
+                      <p className="mt-3 text-sm font-semibold text-white/75">
+                        {item.value}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {selectedTask.assignmentType === "team" && (
+                <div className="mt-4 rounded-2xl border border-blue-500/20 bg-blue-500/[0.04] p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-300/80">
+                        Team Task
+                      </p>
+                      <p className="mt-1 text-xs text-white/35">
+                        {selectedTask.submitterMode === "anybody"
+                          ? "Anybody in the selected team can submit. The first successful submission completes the task for everyone."
+                          : `Only ${selectedTask.submitterName || "the selected employee"} can submit this task.`}
+                      </p>
+                    </div>
+                    {selectedTask.teamLeadName && (
+                      <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[10px] font-semibold text-amber-200">
+                        TL: {selectedTask.teamLeadName}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    {(selectedTask.teamMembers || []).map((member) => (
+                      <div
+                        key={member.id}
+                        className="rounded-xl border border-white/[0.07] bg-black/10 p-3"
+                      >
+                        <p className="text-sm font-semibold text-white/80">
+                          {member.name || member.email || "Team Member"}
+                        </p>
+                        <p className="mt-1 text-[10px] text-white/30">
+                          Dep: {member.department || "Not set"} · Role: {member.role || "Not set"}
+                          {member.isTeamLead ? " · Team Lead (TL)" : ""}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SUBMITTED WORK / REVIEW */}
+              {isSubmittedTask(selectedTask.status) && (
+                <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/[0.05] p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-violet-300/80">
+                        Submitted work · ready for review
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-white/80">
+                        {selectedTask.submissionName || "Submission note only"}
+                      </p>
+                      {selectedTask.submittedByName && (
+                        <p className="mt-1 text-xs text-white/35">
+                          Submitted by {selectedTask.submittedByName}
+                        </p>
+                      )}
+                      {selectedTask.assignmentType === "team" && (
+                        <p className="mt-1 text-[11px] text-emerald-300/60">
+                          This submission is visible to every selected team member.
+                        </p>
+                      )}
+                      {selectedTask.submissionAt && (
+                        <p className="mt-1 text-xs text-white/25">
+                          {formatDateTime(selectedTask.submissionAt)}
+                        </p>
+                      )}
+                    </div>
+                    {selectedTask.submissionUrl && (
+                      <a
+                        href={selectedTask.submissionUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="shrink-0 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-xs font-semibold text-white/70 hover:bg-white/[0.09]"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <Download size={15} /> Open submission
+                        </span>
+                      </a>
+                    )}
+                  </div>
+
+                  {selectedTask.submissionNote && (
+                    <div className="mt-4 rounded-xl border border-white/[0.07] bg-black/20 p-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-white/30">
+                        Submission note
+                      </p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-white/60">
+                        {selectedTask.submissionNote}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <button
+                      onClick={() => approveTask(selectedTask)}
+                      disabled={reviewLoading === selectedTask.id}
+                      className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-3 text-sm font-semibold disabled:opacity-50"
+                    >
+                      {reviewLoading === selectedTask.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                      Approve Work
+                    </button>
+                    <button
+                      onClick={() => {
+                        setReviewFeedback(selectedTask.feedback || selectedTask.reviewComment || "");
+                        setChangeRecipientIds(selectedTask.teamMemberIds?.length ? [...selectedTask.teamMemberIds] : selectedTask.assignedTo ? [selectedTask.assignedTo] : []);
+                        setShowChangesModal(true);
+                      }}
+                      disabled={reviewLoading === selectedTask.id}
+                      className="flex items-center justify-center gap-2 rounded-xl border border-orange-500/20 bg-orange-500/[0.07] px-4 py-3 text-sm font-semibold text-orange-200 disabled:opacity-50"
+                    >
+                      <RefreshCw size={16} /> Request Changes
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {selectedTask.feedback && !isSubmittedTask(selectedTask.status) && (
+                <div className="mt-4 rounded-2xl border border-orange-500/15 bg-orange-500/[0.04] p-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-orange-300/80">Founder feedback</p>
+                  {selectedTask.changeRecipientNames && selectedTask.changeRecipientNames.length > 0 && (
+                    <p className="mt-2 text-[11px] text-orange-200/60">
+                      Sent to: {selectedTask.changeRecipientNames.join(", ")}
+                    </p>
+                  )}
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-white/60">{selectedTask.feedback}</p>
+                </div>
+              )}
+
+              {/* Workflow */}
+              <div className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-white/35">
+                  Workflow
+                </p>
+
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                  {[
+                    "TO DO",
+                    "IN PROGRESS",
+                    "SUBMITTED",
+                    "CHANGES REQUESTED",
+                    "APPROVED",
+                    "COMPLETED",
+                  ].map(
+                    (status, index) => (
+                      <div
+                        key={status}
+                        className="flex items-center gap-2"
+                      >
+                        <span
+                          className={`rounded-lg border px-3 py-2 text-[10px] font-semibold ${
+                            selectedTask.status ===
+                            status
+                              ? "border-violet-500/40 bg-violet-500/15 text-violet-200"
+                              : "border-white/10 bg-white/[0.02] text-white/30"
+                          }`}
+                        >
+                          {status}
+                        </span>
+
+                        {index <
+                          4 && (
+                          <span className="text-white/20">
+                            →
+                          </span>
+                        )}
+                      </div>
+                    )
+                  )}
+                </div>
+
+                {selectedTask.status ===
+                  "CHANGES REQUESTED" && (
+                  <div className="mt-4 rounded-xl border border-orange-500/20 bg-orange-500/10 p-4 text-xs text-orange-300">
+                    Changes have been
+                    requested. The assigned
+                    person should update the
+                    work and submit it again.
+                  </div>
+                )}
+              </div>
+
+              {/* Google Drive Reference */}
+              {selectedTask.referenceDriveUrl && (
+                <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-300/80">
+                        Google Drive reference
+                      </p>
+                      <p className="mt-2 text-sm text-white/50">
+                        Reference files for this task are stored in Google Drive.
+                      </p>
+                    </div>
+
+                    <a
+                      href={selectedTask.referenceDriveUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="shrink-0 rounded-xl bg-emerald-600/90 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-emerald-500"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Download size={15} /> Open Google Drive
+                      </span>
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Legacy Firebase Storage attachments */}
+              {selectedTask.attachmentUrls &&
+                selectedTask.attachmentUrls.length > 0 && (
+                  <div className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-white/35">
+                      Legacy attachments
+                    </p>
+                    <div className="mt-4 space-y-2">
+                      {selectedTask.attachmentUrls.map((url, index) => (
+                        <a
+                          key={url}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3 transition hover:bg-white/[0.05]"
+                        >
+                          <span className="flex items-center gap-3 text-sm text-white/60">
+                            <FileText size={16} className="text-violet-300" />
+                            {selectedTask.attachmentNames?.[index] || `Attachment ${index + 1}`}
+                          </span>
+                          <Download size={16} className="text-white/30" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {selectedTask.calendarReminder && (
+                <div className="mt-4 flex items-center gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[0.05] p-5">
+                  <Calendar
+                    size={19}
+                    className="text-violet-300"
+                  />
+
+                  <div>
+                    <p className="text-sm font-semibold">
+                      Calendar reminder enabled
+                    </p>
+
+                    <p className="mt-1 text-xs text-white/35">
+                      This task has been prepared
+                      for calendar integration.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Founder completion — available after approval */}
+              {normalizeStatus(selectedTask.status) === "approved" && (
+                <button
+                  onClick={() => markTaskCompleted(selectedTask)}
+                  disabled={reviewLoading === selectedTask.id}
+                  className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-5 py-3 text-sm font-semibold text-white transition hover:from-emerald-500 hover:to-teal-400 disabled:opacity-50"
+                >
+                  {reviewLoading === selectedTask.id ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <CheckCircle2 size={16} />
+                  )}
+                  Mark Task Completed
+                </button>
+              )}
+
+              {/* Founder delete — available only after Founder approval */}
+              {(normalizeStatus(selectedTask.status) === "approved" ||
+                normalizeStatus(selectedTask.status) === "completed") && (
+                <button
+                  onClick={() => handleDeleteTask(selectedTask)}
+                  className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/[0.05] px-5 py-3 text-sm font-medium text-red-300 transition hover:bg-red-500/10"
+                >
+                  <Trash2 size={16} />
+                  Delete Task
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showChangesModal && selectedTask && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md">
+          <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-[#0c0c10] p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-orange-300/70">Review decision</p>
+                <h2 className="mt-1 text-xl font-semibold">Request changes</h2>
+                <p className="mt-2 text-xs text-white/35">Choose who should receive these changes, then describe exactly what needs to be changed.</p>
+              </div>
+              <button onClick={() => setShowChangesModal(false)} className="rounded-xl bg-white/[0.04] p-2 text-white/50 hover:text-white"><X size={17}/></button>
+            </div>
+            <div className="mt-5 rounded-2xl border border-orange-500/15 bg-orange-500/[0.04] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-300/70">Send changes to</p>
+              <div className="mt-3 space-y-2">
+                {((selectedTask.teamMembers && selectedTask.teamMembers.length > 0) ? selectedTask.teamMembers : [{ id: selectedTask.assignedTo || "", name: selectedTask.assignedToName || "Assigned Employee", role: "", department: "", isTeamLead: false }]).map((member) => {
+                  const checked = changeRecipientIds.includes(member.id);
+                  return <button type="button" key={member.id} onClick={() => setChangeRecipientIds(checked ? changeRecipientIds.filter((id) => id !== member.id) : [...changeRecipientIds, member.id])} className={`w-full rounded-xl border p-3 text-left ${checked ? "border-orange-500/30 bg-orange-500/10" : "border-white/[0.07] bg-black/10"}`}>
+                    <div className="flex items-center gap-3"><span className={`flex h-5 w-5 items-center justify-center rounded-md border ${checked ? "border-orange-400 bg-orange-500 text-white" : "border-white/20 text-transparent"}`}><Check size={13}/></span><div><p className="text-sm font-semibold text-white/80">{member.name || member.email}</p><p className="mt-1 text-[10px] text-white/30">Dep: {member.department || "Not set"} · Role: {member.role || "Not set"}{member.isTeamLead ? " · Team Lead (TL)" : ""}</p></div></div>
+                  </button>;
+                })}
+                {selectedTask.assignmentType === "team" && (
+                  <button type="button" onClick={() => { const ids = (selectedTask.teamMemberIds || []).filter(Boolean); setChangeRecipientIds(changeRecipientIds.length === ids.length ? [] : ids); }} className={`w-full rounded-xl border p-3 text-left ${selectedTask.teamMemberIds?.length && changeRecipientIds.length === selectedTask.teamMemberIds.length ? "border-violet-500/30 bg-violet-500/10" : "border-white/[0.07] bg-black/10"}`}>
+                    <p className="text-sm font-semibold text-violet-200">All</p><p className="mt-1 text-[10px] text-white/30">Send the change request to every selected team member.</p>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <textarea
+              autoFocus
+              value={reviewFeedback}
+              onChange={(event) => setReviewFeedback(event.target.value)}
+              rows={7}
+              placeholder="Example: Please correct the opening section, replace the final clip and resubmit before the deadline."
+              className="mt-5 w-full resize-none rounded-2xl border border-white/[0.08] bg-black/20 p-4 text-sm leading-6 text-white outline-none placeholder:text-white/20 focus:border-orange-500/40"
+            />
+            <div className="mt-4 flex gap-3">
+              <button onClick={() => setShowChangesModal(false)} className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white/60">Cancel</button>
+              <button onClick={() => requestChanges(selectedTask)} disabled={reviewLoading === selectedTask.id} className="flex-1 rounded-xl bg-gradient-to-r from-orange-600 to-violet-600 px-4 py-3 text-sm font-semibold disabled:opacity-50">
+                {reviewLoading === selectedTask.id ? "Saving..." : "Request Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </main>
+  );
+}

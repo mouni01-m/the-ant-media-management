@@ -1,0 +1,223 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isActiveUser() {
+      return signedIn() && userDoc().data.active == true;
+    }
+
+    function isFounder() {
+      return isActiveUser() && userDoc().data.role == "founder";
+    }
+
+    function isEmployee() {
+      return isActiveUser() && userDoc().data.role == "employee";
+    }
+
+    function isIntern() {
+      return isActiveUser() && userDoc().data.role == "intern";
+    }
+
+    function isStaff() {
+      return isEmployee() || isIntern();
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    match /users/{userId} {
+      allow read: if isActiveUser() && (
+        isOwner(userId) ||
+        isFounder() ||
+        resource.data.role == "founder"
+      );
+
+      allow create, delete: if isFounder();
+      allow update: if isFounder();
+
+      allow update: if isActiveUser()
+        && isOwner(userId)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.department == resource.data.department
+        && request.resource.data.active == resource.data.active;
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isActiveUser() && (
+        isFounder() ||
+        resource.data.assignedTo == request.auth.uid ||
+        ("teamMemberIds" in resource.data && request.auth.uid in resource.data.teamMemberIds)
+      );
+
+      allow create: if isFounder();
+      allow update: if isFounder();
+
+      allow update: if isStaff() && (
+        (
+          resource.data.assignedTo == request.auth.uid &&
+          request.resource.data.assignedTo == resource.data.assignedTo
+        ) ||
+        (
+          "teamMemberIds" in resource.data &&
+          request.auth.uid in resource.data.teamMemberIds &&
+          (
+            !("assignedTo" in resource.data) ||
+            !("assignedTo" in request.resource.data) ||
+            request.resource.data.assignedTo == resource.data.assignedTo
+          )
+        )
+      );
+
+      allow delete: if isFounder();
+    }
+
+    match /attendance/{attendanceId} {
+      allow read: if isActiveUser() && (
+        isFounder() || resource.data.userId == request.auth.uid
+      );
+
+      allow create: if isStaff() &&
+        request.resource.data.userId == request.auth.uid;
+
+      allow update: if isStaff() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == request.auth.uid;
+
+      allow create, update, delete: if isFounder();
+    }
+
+    match /leaveRequests/{leaveId} {
+      allow read: if isActiveUser() && (
+        isFounder() || resource.data.userId == request.auth.uid
+      );
+
+      allow create: if isStaff() &&
+        request.resource.data.userId == request.auth.uid;
+
+      allow update, delete: if isFounder();
+
+      allow update: if isStaff() &&
+        resource.data.userId == request.auth.uid &&
+        resource.data.status == "PENDING" &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == "PENDING";
+    }
+
+    match /clients/{clientId} {
+      allow read: if isActiveUser();
+      allow create, update, delete: if isFounder();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isActiveUser() && (
+        isFounder() ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid ||
+        resource.data.senderId == request.auth.uid
+      );
+
+      allow create: if isActiveUser() && (
+        request.resource.data.userId == request.auth.uid ||
+        request.resource.data.senderId == request.auth.uid ||
+        request.resource.data.recipientId == request.auth.uid
+      );
+
+      allow update: if isActiveUser() && (
+        isFounder() ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid ||
+        resource.data.senderId == request.auth.uid
+      );
+
+      allow delete: if isActiveUser() && (
+        isFounder() ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.recipientId == request.auth.uid ||
+        resource.data.senderId == request.auth.uid
+      );
+    }
+
+    match /calendarEvents/{eventId} {
+      allow read: if isActiveUser();
+      allow create, update, delete: if isFounder();
+
+      allow create: if isStaff() && (
+        request.resource.data.assignedTo == request.auth.uid ||
+        request.resource.data.attendeeUserId == request.auth.uid
+      );
+
+      allow update: if isStaff() && (
+        resource.data.assignedTo == request.auth.uid ||
+        resource.data.attendeeUserId == request.auth.uid
+      ) && request.resource.data.assignedTo == resource.data.assignedTo;
+
+      allow delete: if isStaff() && (
+        resource.data.assignedTo == request.auth.uid ||
+        resource.data.attendeeUserId == request.auth.uid
+      );
+    }
+
+    match /contentCalendar/{contentId} {
+      allow read: if isActiveUser();
+      allow create, update, delete: if isFounder();
+    }
+
+    match /projects/{projectId} {
+      allow read: if isActiveUser();
+      allow create, update, delete: if isFounder();
+    }
+
+    match /activityLogs/{logId} {
+      allow read: if isFounder();
+      allow create: if isActiveUser();
+      allow update, delete: if isFounder();
+    }
+
+    match /performance/{performanceId} {
+      allow read: if isFounder() || (
+        isActiveUser() && resource.data.userId == request.auth.uid
+      );
+      allow create, update, delete: if isFounder();
+    }
+
+    match /recycleBinTasks/{recycleId} {
+      allow read: if isActiveUser() && (
+        isFounder() ||
+        resource.data.ownerUserId == request.auth.uid ||
+        resource.data.deletedBy == request.auth.uid
+      );
+
+      allow create: if isActiveUser() && (
+        isFounder() ||
+        request.resource.data.ownerUserId == request.auth.uid ||
+        request.resource.data.deletedBy == request.auth.uid
+      );
+
+      allow update: if isActiveUser() && (
+        isFounder() ||
+        resource.data.ownerUserId == request.auth.uid ||
+        resource.data.deletedBy == request.auth.uid
+      );
+
+      allow delete: if isActiveUser() && (
+        isFounder() ||
+        resource.data.ownerUserId == request.auth.uid ||
+        resource.data.deletedBy == request.auth.uid
+      );
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
