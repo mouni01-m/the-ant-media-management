@@ -17,11 +17,7 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
-import {
-  collection,
-  onSnapshot,
-  Timestamp,
-} from "firebase/firestore";
+import { collection, onSnapshot, Timestamp } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 
@@ -86,11 +82,7 @@ const isActive = (task: TaskRecord) =>
 const getToday = () => {
   const now = new Date();
 
-  return new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
-  );
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 };
 
 const getPeriodStart = (period: Period) => {
@@ -107,15 +99,11 @@ const getPeriodStart = (period: Period) => {
     return new Date(
       today.getFullYear(),
       today.getMonth(),
-      today.getDate() + diff
+      today.getDate() + diff,
     );
   }
 
-  return new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    1
-  );
+  return new Date(today.getFullYear(), today.getMonth(), 1);
 };
 
 const getPeriodEnd = (period: Period) => {
@@ -129,7 +117,7 @@ const getPeriodEnd = (period: Period) => {
       23,
       59,
       59,
-      999
+      999,
     );
   }
 
@@ -144,7 +132,7 @@ const getPeriodEnd = (period: Period) => {
       23,
       59,
       59,
-      999
+      999,
     );
   }
 
@@ -155,7 +143,7 @@ const getPeriodEnd = (period: Period) => {
     23,
     59,
     59,
-    999
+    999,
   );
 };
 
@@ -168,11 +156,7 @@ const dateOnly = (value?: string | null) => {
     return null;
   }
 
-  return new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate()
-  );
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 };
 
 const toDate = (value: unknown): Date | null => {
@@ -189,21 +173,16 @@ const toDate = (value: unknown): Date | null => {
   if (typeof value === "string") {
     const date = new Date(value);
 
-    return Number.isNaN(date.getTime())
-      ? null
-      : date;
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
   if (
     typeof value === "object" &&
     value !== null &&
     "seconds" in value &&
-    typeof (value as { seconds?: unknown }).seconds ===
-      "number"
+    typeof (value as { seconds?: unknown }).seconds === "number"
   ) {
-    return new Date(
-      (value as { seconds: number }).seconds * 1000
-    );
+    return new Date((value as { seconds: number }).seconds * 1000);
   }
 
   return null;
@@ -220,9 +199,7 @@ const getDeadlineDate = (task: TaskRecord) => {
 
   const date = new Date(value);
 
-  return Number.isNaN(date.getTime())
-    ? null
-    : date;
+  return Number.isNaN(date.getTime()) ? null : date;
 };
 
 const isOverdue = (task: TaskRecord) => {
@@ -260,118 +237,89 @@ export default function FounderReportsPage() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
 
-  const [period, setPeriod] =
-    useState<Period>("month");
+  const [period, setPeriod] = useState<Period>("month");
 
-  const [roleFilter, setRoleFilter] = useState<
-    "all" | "employee" | "intern"
-  >("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | "employee" | "intern">(
+    "all",
+  );
 
-  const [departmentFilter, setDepartmentFilter] =
-    useState("all");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
 
   useEffect(() => {
-    let unsubscribeUsers:
-      | (() => void)
-      | null = null;
+    let unsubscribeUsers: (() => void) | null = null;
 
-    let unsubscribeTasks:
-      | (() => void)
-      | null = null;
+    let unsubscribeTasks: (() => void) | null = null;
 
-    const unsubscribeAuth = onAuthStateChanged(
-      auth,
-      (user) => {
-        unsubscribeUsers?.();
-        unsubscribeTasks?.();
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      unsubscribeUsers?.();
+      unsubscribeTasks?.();
 
-        unsubscribeUsers = null;
-        unsubscribeTasks = null;
+      unsubscribeUsers = null;
+      unsubscribeTasks = null;
 
-        if (!user) {
-          setAuthorized(false);
-          setUsers([]);
-          setTasks([]);
-          setLoading(false);
-          return;
-        }
+      if (!user) {
+        setAuthorized(false);
+        setUsers([]);
+        setTasks([]);
+        setLoading(false);
+        return;
+      }
 
-        setLoading(true);
+      setLoading(true);
 
-        unsubscribeUsers = onSnapshot(
-          collection(db, "users"),
-          (snapshot) => {
-            const usersData = snapshot.docs.map(
-              (item) => ({
-                id: item.id,
-                ...(item.data() as Omit<
-                  UserRecord,
-                  "id"
-                >),
-              })
-            );
+      unsubscribeUsers = onSnapshot(
+        collection(db, "users"),
+        (snapshot) => {
+          const usersData = snapshot.docs.map((item) => ({
+            id: item.id,
+            ...(item.data() as Omit<UserRecord, "id">),
+          }));
 
-            const currentUser = usersData.find(
-              (item) => item.id === user.uid
-            );
+          const currentUser = usersData.find((item) => item.id === user.uid);
 
-            const currentRole = String(
-              currentUser?.role || ""
-            )
-              .trim()
-              .toLowerCase();
+          const currentRole = String(currentUser?.role || "")
+            .trim()
+            .toLowerCase();
 
-            if (currentRole !== "founder") {
-              setAuthorized(false);
-              setUsers([]);
-              setTasks([]);
-              setLoading(false);
-              return;
-            }
-
-            setAuthorized(true);
-            setUsers(usersData);
-          },
-          (error) => {
-            console.error(
-              "Founder reports users listener error:",
-              error
-            );
-
+          if (currentRole !== "founder") {
             setAuthorized(false);
             setUsers([]);
-            setLoading(false);
-          }
-        );
-
-        unsubscribeTasks = onSnapshot(
-          collection(db, "tasks"),
-          (snapshot) => {
-            const taskData = snapshot.docs.map(
-              (item) => ({
-                id: item.id,
-                ...(item.data() as Omit<
-                  TaskRecord,
-                  "id"
-                >),
-              })
-            );
-
-            setTasks(taskData);
-            setLoading(false);
-          },
-          (error) => {
-            console.error(
-              "Founder reports tasks listener error:",
-              error
-            );
-
             setTasks([]);
             setLoading(false);
+            return;
           }
-        );
-      }
-    );
+
+          setAuthorized(true);
+          setUsers(usersData);
+        },
+        (error) => {
+          console.error("Founder reports users listener error:", error);
+
+          setAuthorized(false);
+          setUsers([]);
+          setLoading(false);
+        },
+      );
+
+      unsubscribeTasks = onSnapshot(
+        collection(db, "tasks"),
+        (snapshot) => {
+          const taskData = snapshot.docs.map((item) => ({
+            id: item.id,
+            ...(item.data() as Omit<TaskRecord, "id">),
+          }));
+
+          setTasks(taskData);
+          setLoading(false);
+        },
+        (error) => {
+          console.error("Founder reports tasks listener error:", error);
+
+          setTasks([]);
+          setLoading(false);
+        },
+      );
+    });
 
     return () => {
       unsubscribeUsers?.();
@@ -384,11 +332,10 @@ export default function FounderReportsPage() {
     () =>
       users.filter(
         (user) =>
-          (user.role === "employee" ||
-            user.role === "intern") &&
-          user.active === true
+          (user.role === "employee" || user.role === "intern") &&
+          user.active === true,
       ),
-    [users]
+    [users],
   );
 
   const departments = useMemo(() => {
@@ -396,9 +343,7 @@ export default function FounderReportsPage() {
       .map((user) => user.department)
       .filter(Boolean) as string[];
 
-    return Array.from(
-      new Set(values)
-    ).sort();
+    return Array.from(new Set(values)).sort();
   }, [teamMembers]);
 
   const filteredTasks = useMemo(() => {
@@ -407,25 +352,16 @@ export default function FounderReportsPage() {
 
     return tasks.filter((task) => {
       const assignedMember = teamMembers.find(
-        (user) => user.id === task.assignedTo
+        (user) => user.id === task.assignedTo,
       );
 
-      if (
-        roleFilter !== "all" &&
-        assignedMember?.role !== roleFilter
-      ) {
+      if (roleFilter !== "all" && assignedMember?.role !== roleFilter) {
         return false;
       }
 
-      const department =
-        task.department ||
-        assignedMember?.department ||
-        "";
+      const department = task.department || assignedMember?.department || "";
 
-      if (
-        departmentFilter !== "all" &&
-        department !== departmentFilter
-      ) {
+      if (departmentFilter !== "all" && department !== departmentFilter) {
         return false;
       }
 
@@ -443,63 +379,41 @@ export default function FounderReportsPage() {
         taskDate.getTime() <= end.getTime()
       );
     });
-  }, [
-    tasks,
-    teamMembers,
-    period,
-    roleFilter,
-    departmentFilter,
-  ]);
+  }, [tasks, teamMembers, period, roleFilter, departmentFilter]);
 
   const totalTasks = filteredTasks.length;
 
-  const completedTasks =
-    filteredTasks.filter(isCompleted);
+  const completedTasks = filteredTasks.filter(isCompleted);
 
-  const activeTasks =
-    filteredTasks.filter(isActive);
+  const activeTasks = filteredTasks.filter(isActive);
 
-  const overdueTasks =
-    filteredTasks.filter(isOverdue);
+  const overdueTasks = filteredTasks.filter(isOverdue);
 
   const completionRate =
     totalTasks === 0
       ? 0
-      : Math.round(
-          (completedTasks.length / totalTasks) * 100
-        );
+      : Math.round((completedTasks.length / totalTasks) * 100);
 
   const memberWorkload = useMemo(() => {
     return teamMembers
+      .filter((member) => roleFilter === "all" || member.role === roleFilter)
       .filter(
         (member) =>
-          roleFilter === "all" ||
-          member.role === roleFilter
-      )
-      .filter(
-        (member) =>
-          departmentFilter === "all" ||
-          member.department === departmentFilter
+          departmentFilter === "all" || member.department === departmentFilter,
       )
       .map((member) => {
         const memberTasks = filteredTasks.filter(
-          (task) =>
-            task.assignedTo === member.id
+          (task) => task.assignedTo === member.id,
         );
 
-        const active =
-          memberTasks.filter(isActive);
+        const active = memberTasks.filter(isActive);
 
-        const completed =
-          memberTasks.filter(isCompleted);
+        const completed = memberTasks.filter(isCompleted);
 
-        const overdue =
-          memberTasks.filter(isOverdue);
+        const overdue = memberTasks.filter(isOverdue);
 
         const workload =
-          active.length === 0
-            ? 0
-            : Math.min(100, active.length * 20);
+          active.length === 0 ? 0 : Math.min(100, active.length * 20);
 
         return {
           ...member,
@@ -510,15 +424,8 @@ export default function FounderReportsPage() {
           workload,
         };
       })
-      .sort(
-        (a, b) => b.active - a.active
-      );
-  }, [
-    teamMembers,
-    filteredTasks,
-    roleFilter,
-    departmentFilter,
-  ]);
+      .sort((a, b) => b.active - a.active);
+  }, [teamMembers, filteredTasks, roleFilter, departmentFilter]);
 
   const departmentWorkload = useMemo(() => {
     const map = new Map<
@@ -533,18 +440,11 @@ export default function FounderReportsPage() {
     >();
 
     filteredTasks.forEach((task) => {
-      const member = teamMembers.find(
-        (user) => user.id === task.assignedTo
-      );
+      const member = teamMembers.find((user) => user.id === task.assignedTo);
 
-      const department =
-        task.department ||
-        member?.department ||
-        "Unassigned";
+      const department = task.department || member?.department || "Unassigned";
 
-      const existing = map.get(
-        department
-      ) || {
+      const existing = map.get(department) || {
         department,
         total: 0,
         active: 0,
@@ -569,9 +469,7 @@ export default function FounderReportsPage() {
       map.set(department, existing);
     });
 
-    return Array.from(map.values()).sort(
-      (a, b) => b.active - a.active
-    );
+    return Array.from(map.values()).sort((a, b) => b.active - a.active);
   }, [filteredTasks, teamMembers]);
 
   const highestWorkload = memberWorkload[0];
@@ -592,7 +490,7 @@ export default function FounderReportsPage() {
       memberWorkload.length;
 
     const overloaded = memberWorkload.filter(
-      (member) => member.active >= 5 || member.active > averageActive * 1.75
+      (member) => member.active >= 5 || member.active > averageActive * 1.75,
     );
 
     if (overloaded.length > 0) {
@@ -610,7 +508,8 @@ export default function FounderReportsPage() {
       insights.push({
         tone: "emerald",
         title: "Workload is balanced",
-        detail: "No team member crosses the current workload pressure threshold for this report.",
+        detail:
+          "No team member crosses the current workload pressure threshold for this report.",
       });
     }
 
@@ -634,7 +533,8 @@ export default function FounderReportsPage() {
       insights.push({
         tone: "emerald",
         title: "Today's deadlines",
-        detail: "No incomplete tasks are due today in the selected report scope.",
+        detail:
+          "No incomplete tasks are due today in the selected report scope.",
       });
     }
 
@@ -651,7 +551,7 @@ export default function FounderReportsPage() {
       });
 
       const topOverdue = Array.from(overdueByMember.entries()).sort(
-        (a, b) => b[1] - a[1]
+        (a, b) => b[1] - a[1],
       )[0];
 
       insights.push({
@@ -671,7 +571,7 @@ export default function FounderReportsPage() {
 
     const roleStats = ["employee", "intern"].map((role) => {
       const roleMembers = memberWorkload.filter(
-        (member) => member.role === role
+        (member) => member.role === role,
       );
 
       return {
@@ -680,9 +580,8 @@ export default function FounderReportsPage() {
       };
     });
 
-    const employeeActive = roleStats.find(
-      (item) => item.role === "employee"
-    )?.active || 0;
+    const employeeActive =
+      roleStats.find((item) => item.role === "employee")?.active || 0;
     const internActive =
       roleStats.find((item) => item.role === "intern")?.active || 0;
 
@@ -735,33 +634,25 @@ export default function FounderReportsPage() {
 
   const roleWorkload = useMemo(() => {
     return ["employee", "intern"].map((role) => {
-      const members = memberWorkload.filter(
-        (member) => member.role === role
-      );
+      const members = memberWorkload.filter((member) => member.role === role);
 
       return {
         role,
         members: members.length,
         total: members.reduce((sum, member) => sum + member.total, 0),
         active: members.reduce((sum, member) => sum + member.active, 0),
-        completed: members.reduce(
-          (sum, member) => sum + member.completed,
-          0
-        ),
+        completed: members.reduce((sum, member) => sum + member.completed, 0),
         overdue: members.reduce((sum, member) => sum + member.overdue, 0),
       };
     });
   }, [memberWorkload]);
 
-  const maxRoleActive = Math.max(
-    1,
-    ...roleWorkload.map((item) => item.active)
-  );
+  const maxRoleActive = Math.max(1, ...roleWorkload.map((item) => item.active));
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#07070d] text-white flex items-center justify-center">
-        <div className="flex items-center gap-3 text-white/60">
+      <div className="min-h-screen bg-white text-[var(--brand-black)] flex items-center justify-center">
+        <div className="flex items-center gap-3 text-[var(--brand-black)]">
           <Loader2 className="w-5 h-5 animate-spin" />
           Loading reports...
         </div>
@@ -771,17 +662,14 @@ export default function FounderReportsPage() {
 
   if (!authorized) {
     return (
-      <div className="min-h-screen bg-[#07070d] text-white flex items-center justify-center px-6">
+      <div className="min-h-screen bg-white text-[var(--brand-black)] flex items-center justify-center px-6">
         <div className="text-center">
-          <XCircle className="w-12 h-12 mx-auto mb-4 text-red-400" />
+          <XCircle className="w-12 h-12 mx-auto mb-4 text-red-700" />
 
-          <h1 className="text-xl font-semibold">
-            Founder access required
-          </h1>
+          <h1 className="text-xl font-semibold">Founder access required</h1>
 
-          <p className="text-white/50 mt-2">
-            You do not have permission to view
-            reports.
+          <p className="text-[var(--brand-medium-gray)] mt-2">
+            You do not have permission to view reports.
           </p>
         </div>
       </div>
@@ -789,31 +677,24 @@ export default function FounderReportsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#07070d] text-white overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-violet-600/10 rounded-full blur-3xl" />
-
-        <div className="absolute top-40 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl" />
-      </div>
+    <main className="min-h-screen bg-white text-[var(--brand-black)] overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none"></div>
 
       <div className="relative max-w-[1500px] mx-auto px-5 sm:px-8 py-8">
         {/* HEADER */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5 mb-8">
           <div>
             <button
-              onClick={() =>
-                (window.location.href =
-                  "/founder")
-              }
-              className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition mb-4"
+              onClick={() => (window.location.href = "/founder")}
+              className="inline-flex items-center gap-2 text-sm text-[var(--brand-black)] hover:text-[var(--brand-black)] transition mb-4"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Founder Dashboard
             </button>
 
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500/20 to-blue-500/20 border border-white/10 flex items-center justify-center">
-                <BarChart3 className="w-6 h-6 text-violet-300" />
+              <div className="w-12 h-12 rounded-2xl bg-[var(--brand-red)]/15 border border-[var(--brand-border)] flex items-center justify-center">
+                <BarChart3 className="w-6 h-6 text-[var(--brand-red)]" />
               </div>
 
               <div>
@@ -821,9 +702,8 @@ export default function FounderReportsPage() {
                   Founder Reports
                 </h1>
 
-                <p className="text-white/45 mt-1">
-                  Live performance, workload and
-                  task analytics.
+                <p className="text-[var(--brand-medium-gray)] mt-1">
+                  Live performance, workload and task analytics.
                 </p>
               </div>
             </div>
@@ -839,13 +719,11 @@ export default function FounderReportsPage() {
             ).map(([value, label]) => (
               <button
                 key={value}
-                onClick={() =>
-                  setPeriod(value)
-                }
+                onClick={() => setPeriod(value)}
                 className={`px-4 py-2.5 rounded-xl text-sm font-medium border transition ${
                   period === value
-                    ? "bg-white text-black border-white"
-                    : "bg-white/[0.04] text-white/60 border-white/10 hover:bg-white/[0.08] hover:text-white"
+                    ? "bg-white text-black border-[var(--brand-border)]"
+                    : "bg-white text-[var(--brand-black)] border-[var(--brand-border)] hover:bg-[var(--brand-red-light)] hover:text-[var(--brand-black)]"
                 }`}
               >
                 {label}
@@ -855,9 +733,9 @@ export default function FounderReportsPage() {
         </div>
 
         {/* FILTERS */}
-        <section className="rounded-3xl border border-white/10 bg-white/[0.035] backdrop-blur-xl p-4 mb-6">
+        <section className="rounded-3xl border border-[var(--brand-border)] bg-white  p-4 mb-6">
           <div className="flex items-center gap-2 text-sm font-semibold mb-4">
-            <Filter className="w-4 h-4 text-violet-300" />
+            <Filter className="w-4 h-4 text-[var(--brand-red)]" />
             Report Filters
           </div>
 
@@ -866,50 +744,30 @@ export default function FounderReportsPage() {
               value={roleFilter}
               onChange={(event) =>
                 setRoleFilter(
-                  event.target.value as
-                    | "all"
-                    | "employee"
-                    | "intern"
+                  event.target.value as "all" | "employee" | "intern",
                 )
               }
-              className="bg-[#11111a] border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none"
+              className="bg-white border border-[var(--brand-border)] rounded-xl px-4 py-3 text-sm text-[var(--brand-black)] outline-none"
             >
-              <option value="all">
-                All Team Members
-              </option>
+              <option value="all">All Team Members</option>
 
-              <option value="employee">
-                Employees Only
-              </option>
+              <option value="employee">Employees Only</option>
 
-              <option value="intern">
-                Interns Only
-              </option>
+              <option value="intern">Interns Only</option>
             </select>
 
             <select
               value={departmentFilter}
-              onChange={(event) =>
-                setDepartmentFilter(
-                  event.target.value
-                )
-              }
-              className="bg-[#11111a] border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none"
+              onChange={(event) => setDepartmentFilter(event.target.value)}
+              className="bg-white border border-[var(--brand-border)] rounded-xl px-4 py-3 text-sm text-[var(--brand-black)] outline-none"
             >
-              <option value="all">
-                All Departments
-              </option>
+              <option value="all">All Departments</option>
 
-              {departments.map(
-                (department) => (
-                  <option
-                    key={department}
-                    value={department}
-                  >
-                    {department}
-                  </option>
-                )
-              )}
+              {departments.map((department) => (
+                <option key={department} value={department}>
+                  {department}
+                </option>
+              ))}
             </select>
           </div>
         </section>
@@ -917,36 +775,28 @@ export default function FounderReportsPage() {
         {/* KPI CARDS */}
         <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           <MetricCard
-            icon={
-              <Target className="w-5 h-5" />
-            }
+            icon={<Target className="w-5 h-5" />}
             label="Total Tasks"
             value={totalTasks}
             description="Tasks in selected period"
           />
 
           <MetricCard
-            icon={
-              <Activity className="w-5 h-5" />
-            }
+            icon={<Activity className="w-5 h-5" />}
             label="Active Tasks"
             value={activeTasks.length}
             description="Currently active"
           />
 
           <MetricCard
-            icon={
-              <AlertTriangle className="w-5 h-5" />
-            }
+            icon={<AlertTriangle className="w-5 h-5" />}
             label="Overdue"
             value={overdueTasks.length}
             description="Past their deadline"
           />
 
           <MetricCard
-            icon={
-              <TrendingUp className="w-5 h-5" />
-            }
+            icon={<TrendingUp className="w-5 h-5" />}
             label="Completion Rate"
             value={`${completionRate}%`}
             description={`${completedTasks.length} completed`}
@@ -955,10 +805,10 @@ export default function FounderReportsPage() {
 
         {/* TEAM WORKLOAD */}
         <section className="grid grid-cols-1 xl:grid-cols-3 gap-5 mb-6">
-          <div className="xl:col-span-2 rounded-3xl border border-white/10 bg-white/[0.035] backdrop-blur-xl p-6">
+          <div className="xl:col-span-2 rounded-3xl border border-[var(--brand-border)] bg-white  p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <p className="text-sm text-white/40">
+                <p className="text-sm text-[var(--brand-medium-gray)]">
                   Team Workload
                 </p>
 
@@ -967,90 +817,76 @@ export default function FounderReportsPage() {
                 </h2>
               </div>
 
-              <Users className="w-5 h-5 text-white/30" />
+              <Users className="w-5 h-5 text-[var(--brand-black)]" />
             </div>
 
-            {memberWorkload.length ===
-            0 ? (
+            {memberWorkload.length === 0 ? (
               <EmptyState text="No team workload data for this filter." />
             ) : (
               <div className="space-y-4">
-                {memberWorkload.map(
-                  (member) => (
-                    <div
-                      key={member.id}
-                      className="rounded-2xl bg-white/[0.025] border border-white/5 p-4"
-                    >
-                      <div className="flex items-center justify-between gap-4 mb-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/20 to-blue-500/20 flex items-center justify-center shrink-0">
-                            <UserRound className="w-4 h-4 text-violet-300" />
-                          </div>
-
-                          <div className="min-w-0">
-                            <p className="font-medium truncate">
-                              {member.name ||
-                                member.email ||
-                                "Unnamed member"}
-                            </p>
-
-                            <p className="text-xs text-white/35 capitalize">
-                              {member.role} •{" "}
-                              {member.department ||
-                                "No department"}
-                            </p>
-                          </div>
+                {memberWorkload.map((member) => (
+                  <div
+                    key={member.id}
+                    className="rounded-2xl bg-white border border-[var(--brand-border)] p-4"
+                  >
+                    <div className="flex items-center justify-between gap-4 mb-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-[var(--brand-red)]/15 flex items-center justify-center shrink-0">
+                          <UserRound className="w-4 h-4 text-[var(--brand-red)]" />
                         </div>
 
-                        <div className="text-right shrink-0">
-                          <p className="font-semibold">
-                            {member.active}
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">
+                            {member.name || member.email || "Unnamed member"}
                           </p>
 
-                          <p className="text-[11px] text-white/35">
-                            active
+                          <p className="text-xs text-[var(--brand-medium-gray)] capitalize">
+                            {member.role} •{" "}
+                            {member.department || "No department"}
                           </p>
                         </div>
                       </div>
 
-                      <div className="h-2 rounded-full bg-white/5 overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500 transition-all"
-                          style={{
-                            width: `${member.workload}%`,
-                          }}
-                        />
-                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="font-semibold">{member.active}</p>
 
-                      <div className="flex justify-between mt-3 text-xs text-white/40">
-                        <span>
-                          {member.completed}{" "}
-                          completed
-                        </span>
-
-                        <span>
-                          {member.overdue}{" "}
-                          overdue
-                        </span>
+                        <p className="text-[11px] text-[var(--brand-medium-gray)]">
+                          active
+                        </p>
                       </div>
                     </div>
-                  )
-                )}
+
+                    <div className="h-2 rounded-full bg-white overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-[var(--brand-red)] transition-all"
+                        style={{
+                          width: `${member.workload}%`,
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex justify-between mt-3 text-xs text-[var(--brand-black)]">
+                      <span>{member.completed} completed</span>
+
+                      <span>{member.overdue} overdue</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
           {/* HIGHEST WORKLOAD */}
-          <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-violet-500/[0.10] to-blue-500/[0.05] backdrop-blur-xl p-6">
-            <p className="text-sm text-white/40">
+          <div className="rounded-3xl border border-[var(--brand-border)] bg-[var(--brand-red)]/[0.07]  p-6">
+            <p className="text-sm text-[var(--brand-medium-gray)]">
               Highest Active Workload
             </p>
 
             {highestWorkload ? (
               <>
                 <div className="mt-5 flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center">
-                    <UserRound className="w-6 h-6 text-violet-200" />
+                  <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center">
+                    <UserRound className="w-6 h-6 text-[var(--brand-red)]" />
                   </div>
 
                   <div className="min-w-0">
@@ -1060,7 +896,7 @@ export default function FounderReportsPage() {
                         "Unnamed member"}
                     </h2>
 
-                    <p className="text-sm text-white/40 capitalize">
+                    <p className="text-sm text-[var(--brand-medium-gray)] capitalize">
                       {highestWorkload.role}
                     </p>
                   </div>
@@ -1068,20 +904,18 @@ export default function FounderReportsPage() {
 
                 <div className="mt-8">
                   <div className="flex justify-between text-sm mb-2">
-                    <span className="text-white/45">
+                    <span className="text-[var(--brand-black)]">
                       Active tasks
                     </span>
 
                     <span className="font-semibold">
-                      {
-                        highestWorkload.active
-                      }
+                      {highestWorkload.active}
                     </span>
                   </div>
 
-                  <div className="h-3 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-3 rounded-full bg-white overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500"
+                      className="h-full rounded-full bg-[var(--brand-red)]"
                       style={{
                         width: `${highestWorkload.workload}%`,
                       }}
@@ -1092,17 +926,10 @@ export default function FounderReportsPage() {
                 <div className="grid grid-cols-2 gap-3 mt-6">
                   <MiniStat
                     label="Completed"
-                    value={
-                      highestWorkload.completed
-                    }
+                    value={highestWorkload.completed}
                   />
 
-                  <MiniStat
-                    label="Overdue"
-                    value={
-                      highestWorkload.overdue
-                    }
-                  />
+                  <MiniStat label="Overdue" value={highestWorkload.overdue} />
                 </div>
               </>
             ) : (
@@ -1112,10 +939,10 @@ export default function FounderReportsPage() {
         </section>
 
         {/* DEPARTMENT WORKLOAD */}
-        <section className="rounded-3xl border border-white/10 bg-white/[0.035] backdrop-blur-xl p-6 mb-6">
+        <section className="rounded-3xl border border-[var(--brand-border)] bg-white  p-6 mb-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <p className="text-sm text-white/40">
+              <p className="text-sm text-[var(--brand-medium-gray)]">
                 Department Analysis
               </p>
 
@@ -1124,84 +951,59 @@ export default function FounderReportsPage() {
               </h2>
             </div>
 
-            <BarChart3 className="w-5 h-5 text-white/30" />
+            <BarChart3 className="w-5 h-5 text-[var(--brand-black)]" />
           </div>
 
-          {departmentWorkload.length ===
-          0 ? (
+          {departmentWorkload.length === 0 ? (
             <EmptyState text="No department data available." />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-              {departmentWorkload.map(
-                (department) => (
-                  <div
-                    key={
-                      department.department
-                    }
-                    className="rounded-2xl border border-white/5 bg-white/[0.025] p-5"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <h3 className="font-medium capitalize truncate">
-                        {
-                          department.department
-                        }
-                      </h3>
+              {departmentWorkload.map((department) => (
+                <div
+                  key={department.department}
+                  className="rounded-2xl border border-[var(--brand-border)] bg-white p-5"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="font-medium capitalize truncate">
+                      {department.department}
+                    </h3>
 
-                      <span className="text-xs text-white/30">
-                        {department.total}{" "}
-                        tasks
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 mt-5">
-                      <MiniStat
-                        label="Active"
-                        value={
-                          department.active
-                        }
-                      />
-
-                      <MiniStat
-                        label="Done"
-                        value={
-                          department.completed
-                        }
-                      />
-
-                      <MiniStat
-                        label="Late"
-                        value={
-                          department.overdue
-                        }
-                      />
-                    </div>
+                    <span className="text-xs text-[var(--brand-black)]">
+                      {department.total} tasks
+                    </span>
                   </div>
-                )
-              )}
+
+                  <div className="grid grid-cols-3 gap-2 mt-5">
+                    <MiniStat label="Active" value={department.active} />
+
+                    <MiniStat label="Done" value={department.completed} />
+
+                    <MiniStat label="Late" value={department.overdue} />
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </section>
 
         {/* WORKLOAD INSIGHTS */}
-        <section className="rounded-3xl border border-white/10 bg-white/[0.035] backdrop-blur-xl p-6 mb-6">
+        <section className="rounded-3xl border border-[var(--brand-border)] bg-white  p-6 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 mb-6">
             <div>
-              <p className="text-sm text-white/40">Founder Intelligence</p>
-              <h2 className="text-xl font-semibold mt-1">
-                Workload Insights
-              </h2>
-              <p className="text-sm text-white/35 mt-1">
+              <p className="text-sm text-[var(--brand-medium-gray)]">
+                Founder Intelligence
+              </p>
+              <h2 className="text-xl font-semibold mt-1">Workload Insights</h2>
+              <p className="text-sm text-[var(--brand-medium-gray)] mt-1">
                 Data-driven signals from the selected task period and filters.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-violet-400/10 bg-violet-500/[0.06] px-4 py-3">
-              <p className="text-[11px] uppercase tracking-wider text-white/30">
+            <div className="rounded-2xl border border-[var(--brand-red-secondary)]/10 bg-[var(--brand-red)]/[0.06] px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wider text-[var(--brand-medium-gray)]">
                 Active workload
               </p>
-              <p className="text-xl font-semibold mt-1">
-                {activeTasks.length}
-              </p>
+              <p className="text-xl font-semibold mt-1">{activeTasks.length}</p>
             </div>
           </div>
 
@@ -1222,42 +1024,46 @@ export default function FounderReportsPage() {
         </section>
 
         {/* ROLE WORKLOAD */}
-        <section className="rounded-3xl border border-white/10 bg-white/[0.035] backdrop-blur-xl p-6 mb-6">
+        <section className="rounded-3xl border border-[var(--brand-border)] bg-white  p-6 mb-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <p className="text-sm text-white/40">Role Analysis</p>
+              <p className="text-sm text-[var(--brand-medium-gray)]">
+                Role Analysis
+              </p>
               <h2 className="text-xl font-semibold mt-1">
                 Employee vs Intern Workload
               </h2>
             </div>
-            <Users className="w-5 h-5 text-white/30" />
+            <Users className="w-5 h-5 text-[var(--brand-black)]" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {roleWorkload.map((item) => (
               <div
                 key={item.role}
-                className="rounded-2xl border border-white/5 bg-white/[0.025] p-5"
+                className="rounded-2xl border border-[var(--brand-border)] bg-white p-5"
               >
                 <div className="flex items-center justify-between">
                   <h3 className="font-medium capitalize">{item.role}s</h3>
-                  <span className="text-xs text-white/30">
+                  <span className="text-xs text-[var(--brand-black)]">
                     {item.members} members
                   </span>
                 </div>
 
                 <div className="mt-5">
-                  <div className="flex items-center justify-between text-xs text-white/40 mb-2">
+                  <div className="flex items-center justify-between text-xs text-[var(--brand-black)] mb-2">
                     <span>Active tasks</span>
-                    <span className="text-white/70">{item.active}</span>
+                    <span className="text-[var(--brand-black)]">
+                      {item.active}
+                    </span>
                   </div>
-                  <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-2 rounded-full bg-white overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500 transition-all"
+                      className="h-full rounded-full bg-[var(--brand-red)] transition-all"
                       style={{
                         width: `${Math.min(
                           100,
-                          (item.active / maxRoleActive) * 100
+                          (item.active / maxRoleActive) * 100,
                         )}%`,
                       }}
                     />
@@ -1275,47 +1081,36 @@ export default function FounderReportsPage() {
         </section>
 
         {/* OVERDUE TASKS */}
-        <section className="rounded-3xl border border-white/10 bg-white/[0.035] backdrop-blur-xl p-6">
+        <section className="rounded-3xl border border-[var(--brand-border)] bg-white  p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <p className="text-sm text-white/40">
+              <p className="text-sm text-[var(--brand-medium-gray)]">
                 Attention Required
               </p>
 
-              <h2 className="text-xl font-semibold mt-1">
-                Overdue Tasks
-              </h2>
+              <h2 className="text-xl font-semibold mt-1">Overdue Tasks</h2>
             </div>
 
-            <Clock3 className="w-5 h-5 text-white/30" />
+            <Clock3 className="w-5 h-5 text-[var(--brand-black)]" />
           </div>
 
           {overdueTasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <CheckCircle2 className="w-10 h-10 text-emerald-400/70 mb-3" />
+              <CheckCircle2 className="w-10 h-10 text-emerald-700/70 mb-3" />
 
-              <p className="font-medium">
-                No overdue tasks
-              </p>
+              <p className="font-medium">No overdue tasks</p>
 
-              <p className="text-sm text-white/35 mt-1">
-                Everything is within deadline
-                for this period.
+              <p className="text-sm text-[var(--brand-medium-gray)] mt-1">
+                Everything is within deadline for this period.
               </p>
             </div>
           ) : (
             <div className="space-y-3">
               {[...overdueTasks]
                 .sort((a, b) => {
-                  const dateA =
-                    getDeadlineDate(
-                      a
-                    )?.getTime() || 0;
+                  const dateA = getDeadlineDate(a)?.getTime() || 0;
 
-                  const dateB =
-                    getDeadlineDate(
-                      b
-                    )?.getTime() || 0;
+                  const dateB = getDeadlineDate(b)?.getTime() || 0;
 
                   return dateA - dateB;
                 })
@@ -1326,54 +1121,39 @@ export default function FounderReportsPage() {
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 text-red-300 shrink-0" />
+                        <AlertTriangle className="w-4 h-4 text-red-700 shrink-0" />
 
                         <h3 className="font-medium truncate">
-                          {task.title ||
-                            "Untitled task"}
+                          {task.title || "Untitled task"}
                         </h3>
                       </div>
 
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-white/35">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-[var(--brand-black)]">
                         <span>
                           Assigned to:{" "}
                           {task.assignedToName ||
                             teamMembers.find(
-                              (user) =>
-                                user.id ===
-                                task.assignedTo
+                              (user) => user.id === task.assignedTo,
                             )?.name ||
                             "Unassigned"}
                         </span>
 
-                        <span>
-                          Status:{" "}
-                          {statusLabel(
-                            task.status
-                          )}
-                        </span>
+                        <span>Status: {statusLabel(task.status)}</span>
 
                         {task.clientName && (
-                          <span>
-                            Client:{" "}
-                            {task.clientName}
-                          </span>
+                          <span>Client: {task.clientName}</span>
                         )}
                       </div>
                     </div>
 
                     <div className="text-left md:text-right shrink-0">
-                      <p className="text-sm font-medium text-red-300">
-                        {formatDate(
-                          task.deadline
-                        )}
+                      <p className="text-sm font-medium text-red-700">
+                        {formatDate(task.deadline)}
                       </p>
 
                       {task.deadlineTime && (
-                        <p className="text-xs text-white/30 mt-1">
-                          {
-                            task.deadlineTime
-                          }
+                        <p className="text-xs text-[var(--brand-medium-gray)] mt-1">
+                          {task.deadlineTime}
                         </p>
                       )}
                     </div>
@@ -1399,44 +1179,30 @@ function MetricCard({
   description: string;
 }) {
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/[0.035] backdrop-blur-xl p-5">
+    <div className="rounded-3xl border border-[var(--brand-border)] bg-white  p-5">
       <div className="flex items-center justify-between">
-        <div className="w-10 h-10 rounded-xl bg-white/[0.05] border border-white/5 flex items-center justify-center text-violet-300">
+        <div className="w-10 h-10 rounded-xl bg-white border border-[var(--brand-border)] flex items-center justify-center text-[var(--brand-red)]">
           {icon}
         </div>
       </div>
 
-      <p className="text-sm text-white/40 mt-5">
-        {label}
-      </p>
+      <p className="text-sm text-[var(--brand-medium-gray)] mt-5">{label}</p>
 
-      <p className="text-3xl font-bold mt-1">
-        {value}
-      </p>
+      <p className="text-3xl font-bold mt-1">{value}</p>
 
-      <p className="text-xs text-white/30 mt-2">
+      <p className="text-xs text-[var(--brand-medium-gray)] mt-2">
         {description}
       </p>
     </div>
   );
 }
 
-function MiniStat({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
+function MiniStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl bg-white/[0.035] border border-white/5 p-3">
-      <p className="text-[11px] text-white/30">
-        {label}
-      </p>
+    <div className="rounded-xl bg-white border border-[var(--brand-border)] p-3">
+      <p className="text-[11px] text-[var(--brand-medium-gray)]">{label}</p>
 
-      <p className="text-lg font-semibold mt-1">
-        {value}
-      </p>
+      <p className="text-lg font-semibold mt-1">{value}</p>
     </div>
   );
 }
@@ -1453,22 +1219,23 @@ function InsightCard({
   const styles = {
     red: {
       wrapper: "border-red-500/10 bg-red-500/[0.035]",
-      icon: "text-red-300",
+      icon: "text-red-700",
       Icon: AlertTriangle,
     },
     amber: {
       wrapper: "border-amber-500/10 bg-amber-500/[0.035]",
-      icon: "text-amber-300",
+      icon: "text-amber-700",
       Icon: Clock3,
     },
     blue: {
-      wrapper: "border-blue-500/10 bg-blue-500/[0.035]",
-      icon: "text-blue-300",
+      wrapper:
+        "border-[var(--brand-red-secondary)]/10 bg-[var(--brand-red)]/[0.035]",
+      icon: "text-[var(--brand-red)]",
       Icon: Activity,
     },
     emerald: {
       wrapper: "border-emerald-500/10 bg-emerald-500/[0.035]",
-      icon: "text-emerald-300",
+      icon: "text-emerald-700",
       Icon: CheckCircle2,
     },
   }[tone];
@@ -1479,25 +1246,23 @@ function InsightCard({
     <div
       className={`rounded-2xl border ${styles.wrapper} p-4 flex items-start gap-3`}
     >
-      <div className="w-9 h-9 rounded-xl bg-white/[0.04] border border-white/5 flex items-center justify-center shrink-0">
+      <div className="w-9 h-9 rounded-xl bg-white border border-[var(--brand-border)] flex items-center justify-center shrink-0">
         <Icon className={`w-4 h-4 ${styles.icon}`} />
       </div>
 
       <div className="min-w-0">
         <p className="font-medium text-sm">{title}</p>
-        <p className="text-xs text-white/40 leading-5 mt-1">{detail}</p>
+        <p className="text-xs text-[var(--brand-medium-gray)] leading-5 mt-1">
+          {detail}
+        </p>
       </div>
     </div>
   );
 }
 
-function EmptyState({
-  text,
-}: {
-  text: string;
-}) {
+function EmptyState({ text }: { text: string }) {
   return (
-    <div className="py-10 text-center text-sm text-white/35">
+    <div className="py-10 text-center text-sm text-[var(--brand-black)]">
       {text}
     </div>
   );

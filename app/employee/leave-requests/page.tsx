@@ -24,10 +24,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
-import {
-  onAuthStateChanged,
-  type User as FirebaseUser,
-} from "firebase/auth";
+import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 
 import { auth, db } from "@/lib/firebase";
 
@@ -59,8 +56,7 @@ const leaveTypes = [
 ];
 
 export default function EmployeeLeaveRequestsPage() {
-  const [firebaseUser, setFirebaseUser] =
-    useState<FirebaseUser | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
 
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
 
@@ -79,18 +75,15 @@ export default function EmployeeLeaveRequestsPage() {
   });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      (user) => {
-        setFirebaseUser(user);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
 
-        if (user) {
-          loadRequests(user.uid);
-        } else {
-          setLoading(false);
-        }
+      if (user) {
+        loadRequests(user.uid);
+      } else {
+        setLoading(false);
       }
-    );
+    });
 
     return () => unsubscribe();
   }, []);
@@ -101,7 +94,7 @@ export default function EmployeeLeaveRequestsPage() {
 
       const q = query(
         collection(db, "leaveRequests"),
-        where("userId", "==", userId)
+        where("userId", "==", userId),
       );
 
       const snapshot = await getDocs(q);
@@ -112,11 +105,9 @@ export default function EmployeeLeaveRequestsPage() {
       })) as LeaveRequest[];
 
       data.sort((a, b) => {
-        const aTime =
-          a.createdAt?.seconds || 0;
+        const aTime = a.createdAt?.seconds || 0;
 
-        const bTime =
-          b.createdAt?.seconds || 0;
+        const bTime = b.createdAt?.seconds || 0;
 
         return bTime - aTime;
       });
@@ -124,9 +115,7 @@ export default function EmployeeLeaveRequestsPage() {
       setRequests(data);
     } catch (error) {
       console.error("Leave loading error:", error);
-      setMessage(
-        "Unable to load your leave requests."
-      );
+      setMessage("Unable to load your leave requests.");
     } finally {
       setLoading(false);
     }
@@ -136,17 +125,14 @@ export default function EmployeeLeaveRequestsPage() {
     return {
       total: requests.length,
 
-      pending: requests.filter(
-        (request) => request.status === "PENDING"
-      ).length,
+      pending: requests.filter((request) => request.status === "PENDING")
+        .length,
 
-      approved: requests.filter(
-        (request) => request.status === "APPROVED"
-      ).length,
+      approved: requests.filter((request) => request.status === "APPROVED")
+        .length,
 
-      rejected: requests.filter(
-        (request) => request.status === "REJECTED"
-      ).length,
+      rejected: requests.filter((request) => request.status === "REJECTED")
+        .length,
     };
   }, [requests]);
 
@@ -166,13 +152,8 @@ export default function EmployeeLeaveRequestsPage() {
       return;
     }
 
-    if (
-      new Date(form.endDate) <
-      new Date(form.startDate)
-    ) {
-      setMessage(
-        "End date cannot be before the start date."
-      );
+    if (new Date(form.endDate) < new Date(form.startDate)) {
+      setMessage("End date cannot be before the start date.");
       return;
     }
 
@@ -191,63 +172,51 @@ export default function EmployeeLeaveRequestsPage() {
       const usersSnapshot = await getDocs(
         query(
           collection(db, "users"),
-          where("__name__", "==", firebaseUser.uid)
-        )
+          where("__name__", "==", firebaseUser.uid),
+        ),
       );
 
-      let userName =
-        firebaseUser.displayName || "Employee";
+      let userName = firebaseUser.displayName || "Employee";
 
-      let userEmail =
-        firebaseUser.email || "";
+      let userEmail = firebaseUser.email || "";
       let userRole = "employee";
       let userDepartment = "";
 
       if (!usersSnapshot.empty) {
-        const userData =
-          usersSnapshot.docs[0].data();
+        const userData = usersSnapshot.docs[0].data();
 
-        userName =
-          userData.name || userName;
+        userName = userData.name || userName;
 
-        userEmail =
-          userData.email || userEmail;
+        userEmail = userData.email || userEmail;
 
-        userRole =
-          userData.role === "intern"
-            ? "intern"
-            : "employee";
+        userRole = userData.role === "intern" ? "intern" : "employee";
 
-        userDepartment =
-          userData.department || "";
+        userDepartment = userData.department || "";
       }
 
       /*
        * CREATE LEAVE REQUEST
        */
-      const leaveRef = await addDoc(
-        collection(db, "leaveRequests"),
-        {
-          userId: firebaseUser.uid,
+      const leaveRef = await addDoc(collection(db, "leaveRequests"), {
+        userId: firebaseUser.uid,
 
-          userName,
-          userEmail,
+        userName,
+        userEmail,
 
-          leaveType: form.leaveType,
+        leaveType: form.leaveType,
 
-          startDate: form.startDate,
-          endDate: form.endDate,
+        startDate: form.startDate,
+        endDate: form.endDate,
 
-          reason: form.reason.trim(),
+        reason: form.reason.trim(),
 
-          status: "PENDING",
+        status: "PENDING",
 
-          responseNote: "",
+        responseNote: "",
 
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        }
-      );
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
 
       /*
        * FIND ACTIVE FOUNDER
@@ -259,7 +228,7 @@ export default function EmployeeLeaveRequestsPage() {
       const founderQuery = query(
         collection(db, "users"),
         where("role", "==", "founder"),
-        where("active", "==", true)
+        where("active", "==", true),
       );
 
       const founderSnapshot = await getDocs(founderQuery);
@@ -287,7 +256,7 @@ export default function EmployeeLeaveRequestsPage() {
 
         title: "New leave request",
         message: `${userName} requested ${form.leaveType} from ${formatDate(
-          form.startDate
+          form.startDate,
         )} to ${formatDate(form.endDate)}.`,
 
         type: "leave",
@@ -316,7 +285,7 @@ export default function EmployeeLeaveRequestsPage() {
 
         title: "Leave request sent",
         message: `Your ${form.leaveType.toLowerCase()} request from ${formatDate(
-          form.startDate
+          form.startDate,
         )} to ${formatDate(form.endDate)} was sent to the Founder.`,
 
         type: "leave",
@@ -328,9 +297,7 @@ export default function EmployeeLeaveRequestsPage() {
         createdAt: serverTimestamp(),
       });
 
-      setMessage(
-        "Leave request submitted successfully."
-      );
+      setMessage("Leave request submitted successfully.");
 
       setForm({
         leaveType: "Casual Leave",
@@ -343,64 +310,47 @@ export default function EmployeeLeaveRequestsPage() {
 
       await loadRequests(firebaseUser.uid);
     } catch (error) {
-      console.error(
-        "Leave submission error:",
-        error
-      );
+      console.error("Leave submission error:", error);
 
-      setMessage(
-        "Leave request failed. Please check Firebase permissions."
-      );
+      setMessage("Leave request failed. Please check Firebase permissions.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <main className="min-h-screen bg-[#050507] text-white">
+    <main className="min-h-screen bg-white text-[var(--brand-black)]">
       {/* BACKGROUND */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-[500px] h-[500px] rounded-full bg-violet-700/10 blur-[150px]" />
-
-        <div className="absolute top-1/2 -right-40 w-[500px] h-[500px] rounded-full bg-blue-700/10 blur-[150px]" />
-      </div>
+      <div className="fixed inset-0 pointer-events-none overflow-hidden"></div>
 
       {/* HEADER */}
-      <header className="relative z-10 border-b border-white/[0.07] bg-black/60 backdrop-blur-xl">
+      <header className="relative z-10 border-b border-[var(--brand-border)] bg-white">
         <div className="px-6 md:px-10 py-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() =>
-                window.history.back()
-              }
-              className="w-11 h-11 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] flex items-center justify-center"
+              onClick={() => window.history.back()}
+              className="w-11 h-11 rounded-xl border border-[var(--brand-border)] bg-white hover:bg-[var(--brand-red-light)] flex items-center justify-center"
             >
               <ArrowLeft size={20} />
             </button>
 
             <div>
-              <p className="text-[11px] uppercase tracking-[0.2em] text-violet-300">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-[var(--brand-red)]">
                 Employee / Workspace
               </p>
 
-              <h1 className="text-xl md:text-2xl font-bold">
-                Leave Requests
-              </h1>
+              <h1 className="text-xl md:text-2xl font-bold">Leave Requests</h1>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-emerald-300 text-sm">
+            <div className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-emerald-700 text-sm">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
               Workspace Active
             </div>
 
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center font-bold">
-              {(
-                firebaseUser?.email || "E"
-              )
-                .charAt(0)
-                .toUpperCase()}
+            <div className="w-11 h-11 rounded-xl bg-[var(--brand-red)] flex items-center justify-center font-bold">
+              {(firebaseUser?.email || "E").charAt(0).toUpperCase()}
             </div>
           </div>
         </div>
@@ -410,7 +360,7 @@ export default function EmployeeLeaveRequestsPage() {
         {/* HERO */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8">
           <div>
-            <div className="flex items-center gap-2 text-violet-300 text-sm mb-3">
+            <div className="flex items-center gap-2 text-[var(--brand-red)] text-sm mb-3">
               <CalendarDays size={17} />
               Time away & availability
             </div>
@@ -419,9 +369,9 @@ export default function EmployeeLeaveRequestsPage() {
               Take time when you need it.
             </h2>
 
-            <p className="text-white/40 mt-3 max-w-2xl">
-              Submit leave requests, track approval status,
-              and keep your workspace schedule transparent.
+            <p className="text-[var(--brand-medium-gray)] mt-3 max-w-2xl">
+              Submit leave requests, track approval status, and keep your
+              workspace schedule transparent.
             </p>
           </div>
 
@@ -430,7 +380,7 @@ export default function EmployeeLeaveRequestsPage() {
               setMessage("");
               setShowModal(true);
             }}
-            className="px-5 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 font-semibold flex items-center justify-center gap-2 hover:brightness-110"
+            className="px-5 py-3 rounded-xl bg-[var(--brand-red)] font-semibold flex items-center justify-center gap-2 hover:brightness-110"
           >
             <Plus size={18} />
             Request Leave
@@ -439,7 +389,7 @@ export default function EmployeeLeaveRequestsPage() {
 
         {/* MESSAGE */}
         {message && (
-          <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 text-emerald-300 text-sm flex items-center gap-2">
+          <div className="mb-6 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 text-emerald-700 text-sm flex items-center gap-2">
             <Check size={17} />
             {message}
           </div>
@@ -477,93 +427,75 @@ export default function EmployeeLeaveRequestsPage() {
         </div>
 
         {/* INFO */}
-        <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-5 mb-8 flex gap-4">
-          <div className="w-10 h-10 rounded-xl bg-violet-500/10 text-violet-300 flex items-center justify-center shrink-0">
+        <div className="rounded-2xl border border-[var(--brand-red-secondary)]/15 bg-[var(--brand-red)]/[0.04] p-5 mb-8 flex gap-4">
+          <div className="w-10 h-10 rounded-xl bg-[var(--brand-red)]/10 text-[var(--brand-red)] flex items-center justify-center shrink-0">
             <Info size={19} />
           </div>
 
           <div>
-            <h3 className="font-semibold">
-              Leave approval workflow
-            </h3>
+            <h3 className="font-semibold">Leave approval workflow</h3>
 
-            <p className="text-sm text-white/35 mt-1 leading-6">
-              Submit → Founder Review → Approved /
-              Rejected. You will receive an in-app
-              notification whenever your request is updated.
+            <p className="text-sm text-[var(--brand-medium-gray)] mt-1 leading-6">
+              Submit → Founder Review → Approved / Rejected. You will receive an
+              in-app notification whenever your request is updated.
             </p>
           </div>
         </div>
 
         {/* REQUESTS */}
-        <section className="rounded-2xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
-          <div className="p-6 border-b border-white/[0.07] flex items-center justify-between">
+        <section className="rounded-2xl border border-[var(--brand-border)] bg-white overflow-hidden">
+          <div className="p-6 border-b border-[var(--brand-border)] flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-bold">
-                My Leave History
-              </h3>
+              <h3 className="text-lg font-bold">My Leave History</h3>
 
-              <p className="text-sm text-white/30 mt-1">
+              <p className="text-sm text-[var(--brand-medium-gray)] mt-1">
                 Your personal leave applications
               </p>
             </div>
 
             <button
-              onClick={() =>
-                firebaseUser &&
-                loadRequests(firebaseUser.uid)
-              }
-              className="w-10 h-10 rounded-xl border border-white/10 bg-white/[0.03] flex items-center justify-center hover:bg-white/[0.07]"
+              onClick={() => firebaseUser && loadRequests(firebaseUser.uid)}
+              className="w-10 h-10 rounded-xl border border-[var(--brand-border)] bg-white flex items-center justify-center hover:bg-[var(--brand-red-light)]"
             >
               <RefreshCw size={17} />
             </button>
           </div>
 
           {loading ? (
-            <div className="py-20 text-center text-white/30">
+            <div className="py-20 text-center text-[var(--brand-black)]">
               Loading leave history...
             </div>
           ) : requests.length === 0 ? (
             <div className="py-20 text-center">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-violet-500/10 text-violet-300 flex items-center justify-center">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-[var(--brand-red)]/10 text-[var(--brand-red)] flex items-center justify-center">
                 <CalendarDays size={24} />
               </div>
 
-              <h3 className="font-semibold mt-5">
-                No leave requests yet
-              </h3>
+              <h3 className="font-semibold mt-5">No leave requests yet</h3>
 
-              <p className="text-sm text-white/30 mt-2">
+              <p className="text-sm text-[var(--brand-medium-gray)] mt-2">
                 Your leave applications will appear here.
               </p>
 
               <button
-                onClick={() =>
-                  setShowModal(true)
-                }
-                className="mt-5 px-4 py-2.5 rounded-xl bg-white/[0.05] border border-white/10 text-sm"
+                onClick={() => setShowModal(true)}
+                className="mt-5 px-4 py-2.5 rounded-xl bg-white border border-[var(--brand-border)] text-sm"
               >
                 Request your first leave
               </button>
             </div>
           ) : (
-            <div className="divide-y divide-white/[0.06]">
+            <div className="divide-y divide-[var(--brand-border)]">
               {requests.map((request) => (
-                <LeaveRow
-                  key={request.id}
-                  request={request}
-                />
+                <LeaveRow key={request.id} request={request} />
               ))}
             </div>
           )}
         </section>
 
         {/* FOOTER */}
-        <div className="mt-8 pt-6 border-t border-white/[0.06] flex items-center justify-between text-xs text-white/20">
-          <span>
-            © 2026 The Ant Media · Internal Management
-            System
-          </span>
+        <div className="mt-8 pt-6 border-t border-[var(--brand-border)] flex items-center justify-between text-xs text-[var(--brand-black)]">
+          <span>© 2026 The Ant Media · Internal Management System</span>
 
           <span className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
@@ -574,25 +506,21 @@ export default function EmployeeLeaveRequestsPage() {
 
       {/* MODAL */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl border border-white/[0.1] bg-[#0b0b0f] shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/80  flex items-center justify-center p-4">
+          <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl border border-[var(--brand-border)] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
             {/* MODAL HEADER */}
-            <div className="sticky top-0 z-10 bg-[#0b0b0f]/95 backdrop-blur-xl p-6 border-b border-white/[0.07] flex items-center justify-between">
+            <div className="sticky top-0 z-10 bg-white  p-6 border-b border-[var(--brand-border)] flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-violet-300">
+                <p className="text-xs uppercase tracking-[0.2em] text-[var(--brand-red)]">
                   Time off
                 </p>
 
-                <h2 className="text-xl font-bold mt-1">
-                  Request Leave
-                </h2>
+                <h2 className="text-xl font-bold mt-1">Request Leave</h2>
               </div>
 
               <button
-                onClick={() =>
-                  setShowModal(false)
-                }
-                className="w-10 h-10 rounded-xl bg-white/[0.04] flex items-center justify-center"
+                onClick={() => setShowModal(false)}
+                className="w-10 h-10 rounded-xl bg-white flex items-center justify-center"
               >
                 <X size={18} />
               </button>
@@ -602,7 +530,7 @@ export default function EmployeeLeaveRequestsPage() {
             <div className="p-6 space-y-5">
               {/* TYPE */}
               <div>
-                <label className="text-xs text-white/40">
+                <label className="text-xs text-[var(--brand-black)]">
                   Leave Type
                 </label>
 
@@ -614,14 +542,10 @@ export default function EmployeeLeaveRequestsPage() {
                       leaveType: e.target.value,
                     })
                   }
-                  className="mt-2 w-full h-12 rounded-xl border border-white/[0.08] bg-black/20 px-4 outline-none text-sm"
+                  className="mt-2 w-full h-12 rounded-xl border border-[var(--brand-border)] bg-white px-4 outline-none text-sm"
                 >
                   {leaveTypes.map((type) => (
-                    <option
-                      key={type}
-                      value={type}
-                      className="bg-[#0b0b0f]"
-                    >
+                    <option key={type} value={type} className="bg-white">
                       {type}
                     </option>
                   ))}
@@ -655,7 +579,7 @@ export default function EmployeeLeaveRequestsPage() {
 
               {/* REASON */}
               <div>
-                <label className="text-xs text-white/40">
+                <label className="text-xs text-[var(--brand-black)]">
                   Reason *
                 </label>
 
@@ -669,7 +593,7 @@ export default function EmployeeLeaveRequestsPage() {
                     })
                   }
                   placeholder="Tell the founder why you need leave..."
-                  className="mt-2 w-full rounded-xl border border-white/[0.08] bg-black/20 p-4 outline-none text-sm resize-none placeholder:text-white/20 focus:border-violet-500/40"
+                  className="mt-2 w-full rounded-xl border border-[var(--brand-border)] bg-white p-4 outline-none text-sm resize-none placeholder:text-[var(--brand-black)] focus:border-[var(--brand-red-secondary)]/40"
                 />
               </div>
 
@@ -677,14 +601,11 @@ export default function EmployeeLeaveRequestsPage() {
               <button
                 onClick={submitLeaveRequest}
                 disabled={submitting}
-                className="w-full h-14 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full h-14 rounded-xl bg-[var(--brand-red)] font-bold flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {submitting ? (
                   <>
-                    <RefreshCw
-                      size={18}
-                      className="animate-spin"
-                    />
+                    <RefreshCw size={18} className="animate-spin" />
                     Submitting...
                   </>
                 ) : (
@@ -718,22 +639,16 @@ function StatCard({
   text: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5">
-      <div className="w-10 h-10 rounded-xl bg-violet-500/10 text-violet-300 flex items-center justify-center mb-5">
+    <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-5">
+      <div className="w-10 h-10 rounded-xl bg-[var(--brand-red)]/10 text-[var(--brand-red)] flex items-center justify-center mb-5">
         {icon}
       </div>
 
-      <p className="text-xs text-white/30">
-        {title}
-      </p>
+      <p className="text-xs text-[var(--brand-medium-gray)]">{title}</p>
 
-      <p className="text-3xl font-bold mt-1">
-        {value}
-      </p>
+      <p className="text-3xl font-bold mt-1">{value}</p>
 
-      <p className="text-xs text-white/25 mt-1">
-        {text}
-      </p>
+      <p className="text-xs text-[var(--brand-medium-gray)] mt-1">{text}</p>
     </div>
   );
 }
@@ -749,66 +664,54 @@ function DateInput({
 }) {
   return (
     <div>
-      <label className="text-xs text-white/40">
-        {label}
-      </label>
+      <label className="text-xs text-[var(--brand-black)]">{label}</label>
 
       <div className="relative mt-2">
         <CalendarDays
           size={16}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-white/25"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--brand-black)]"
         />
 
         <input
           type="date"
           value={value}
-          onChange={(e) =>
-            onChange(e.target.value)
-          }
-          className="w-full h-12 rounded-xl border border-white/[0.08] bg-black/20 pl-10 pr-3 outline-none text-sm"
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full h-12 rounded-xl border border-[var(--brand-border)] bg-white pl-10 pr-3 outline-none text-sm"
         />
       </div>
     </div>
   );
 }
 
-function LeaveRow({
-  request,
-}: {
-  request: LeaveRequest;
-}) {
+function LeaveRow({ request }: { request: LeaveRequest }) {
   return (
-    <div className="p-5 md:p-6 hover:bg-white/[0.015] transition-all">
+    <div className="p-5 md:p-6 hover:bg-[var(--brand-red-light)] transition-all">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
         <div className="flex items-start gap-4">
-          <div className="w-11 h-11 rounded-xl bg-violet-500/10 text-violet-300 flex items-center justify-center shrink-0">
+          <div className="w-11 h-11 rounded-xl bg-[var(--brand-red)]/10 text-[var(--brand-red)] flex items-center justify-center shrink-0">
             <CalendarDays size={19} />
           </div>
 
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h4 className="font-semibold">
-                {request.leaveType}
-              </h4>
+              <h4 className="font-semibold">{request.leaveType}</h4>
 
-              <StatusBadge
-                status={request.status}
-              />
+              <StatusBadge status={request.status} />
             </div>
 
-            <p className="text-sm text-white/40 mt-2">
+            <p className="text-sm text-[var(--brand-medium-gray)] mt-2">
               {formatDate(request.startDate)}
               {" → "}
               {formatDate(request.endDate)}
             </p>
 
-            <p className="text-sm text-white/30 mt-2 max-w-2xl">
+            <p className="text-sm text-[var(--brand-medium-gray)] mt-2 max-w-2xl">
               {request.reason}
             </p>
 
             {request.responseNote && (
-              <div className="mt-3 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-xs text-white/40">
-                <span className="text-white/60">
+              <div className="mt-3 px-3 py-2 rounded-lg bg-white border border-[var(--brand-border)] text-xs text-[var(--brand-black)]">
+                <span className="text-[var(--brand-black)]">
                   Founder response:
                 </span>{" "}
                 {request.responseNote}
@@ -817,29 +720,25 @@ function LeaveRow({
           </div>
         </div>
 
-        <div className="text-xs text-white/25">
+        <div className="text-xs text-[var(--brand-black)]">
           {request.status === "PENDING"
             ? "Awaiting founder review"
             : request.status === "APPROVED"
-            ? "Leave approved"
-            : "Leave rejected"}
+              ? "Leave approved"
+              : "Leave rejected"}
         </div>
       </div>
     </div>
   );
 }
 
-function StatusBadge({
-  status,
-}: {
-  status: LeaveRequest["status"];
-}) {
+function StatusBadge({ status }: { status: LeaveRequest["status"] }) {
   const style =
     status === "APPROVED"
-      ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20"
+      ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
       : status === "REJECTED"
-      ? "bg-red-500/10 text-red-300 border-red-500/20"
-      : "bg-yellow-500/10 text-yellow-300 border-yellow-500/20";
+        ? "bg-red-500/10 text-red-700 border-red-500/20"
+        : "bg-yellow-500/10 text-yellow-300 border-yellow-500/20";
 
   return (
     <span
@@ -854,9 +753,7 @@ function formatDate(value: string) {
   if (!value) return "—";
 
   try {
-    return new Date(
-      `${value}T00:00:00`
-    ).toLocaleDateString("en-IN", {
+    return new Date(`${value}T00:00:00`).toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
       year: "numeric",

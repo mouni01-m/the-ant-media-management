@@ -31,6 +31,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import BrandLogo from "@/app/components/brand-logo";
 
 import { auth, db } from "@/lib/firebase";
 
@@ -103,7 +104,7 @@ function formatTime(value?: string) {
 function calculateHours(
   checkIn?: string,
   checkOut?: string,
-  currentTime = new Date()
+  currentTime = new Date(),
 ) {
   if (!checkIn) return 0;
 
@@ -160,8 +161,7 @@ export default function EmployeeAttendancePage() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
 
-  const [todayRecord, setTodayRecord] =
-    useState<AttendanceRecord | null>(null);
+  const [todayRecord, setTodayRecord] = useState<AttendanceRecord | null>(null);
 
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
 
@@ -190,62 +190,47 @@ export default function EmployeeAttendancePage() {
    * AUTH + PROFILE + ATTENDANCE
    */
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      async (currentUser) => {
-        if (!currentUser) {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        window.location.href = "/";
+        return;
+      }
+
+      setUser(currentUser);
+
+      try {
+        const profileRef = doc(db, "users", currentUser.uid);
+
+        const profileSnap = await getDoc(profileRef);
+
+        if (!profileSnap.exists()) {
+          await signOut(auth);
           window.location.href = "/";
           return;
         }
 
-        setUser(currentUser);
+        const profileData = profileSnap.data() as Profile;
 
-        try {
-          const profileRef = doc(
-            db,
-            "users",
-            currentUser.uid
-          );
-
-          const profileSnap = await getDoc(profileRef);
-
-          if (!profileSnap.exists()) {
-            await signOut(auth);
-            window.location.href = "/";
-            return;
-          }
-
-          const profileData =
-            profileSnap.data() as Profile;
-
-          if (
-            profileData.active !== true ||
-            !["employee", "intern"].includes(
-              profileData.role || ""
-            )
-          ) {
-            await signOut(auth);
-            window.location.href = "/";
-            return;
-          }
-
-          setProfile(profileData);
-
-          await loadAttendance(currentUser.uid);
-        } catch (err) {
-          console.error(
-            "EMPLOYEE ATTENDANCE LOAD ERROR:",
-            err
-          );
-
-          setError(
-            "Unable to load attendance. Please refresh and try again."
-          );
-        } finally {
-          setLoading(false);
+        if (
+          profileData.active !== true ||
+          !["employee", "intern"].includes(profileData.role || "")
+        ) {
+          await signOut(auth);
+          window.location.href = "/";
+          return;
         }
+
+        setProfile(profileData);
+
+        await loadAttendance(currentUser.uid);
+      } catch (err) {
+        console.error("EMPLOYEE ATTENDANCE LOAD ERROR:", err);
+
+        setError("Unable to load attendance. Please refresh and try again.");
+      } finally {
+        setLoading(false);
       }
-    );
+    });
 
     return () => unsubscribe();
   }, []);
@@ -261,7 +246,7 @@ export default function EmployeeAttendancePage() {
     const todayQuery = query(
       collection(db, "attendance"),
       where("userId", "==", uid),
-      where("date", "==", today)
+      where("date", "==", today),
     );
 
     const todaySnapshot = await getDocs(todayQuery);
@@ -271,10 +256,7 @@ export default function EmployeeAttendancePage() {
 
       setTodayRecord({
         id: todayDoc.id,
-        ...(todayDoc.data() as Omit<
-          AttendanceRecord,
-          "id"
-        >),
+        ...(todayDoc.data() as Omit<AttendanceRecord, "id">),
       });
     } else {
       setTodayRecord(null);
@@ -285,23 +267,17 @@ export default function EmployeeAttendancePage() {
      */
     const attendanceQuery = query(
       collection(db, "attendance"),
-      where("userId", "==", uid)
+      where("userId", "==", uid),
     );
 
     const snapshot = await getDocs(attendanceQuery);
 
-    const records: AttendanceRecord[] =
-      snapshot.docs.map((item) => ({
-        id: item.id,
-        ...(item.data() as Omit<
-          AttendanceRecord,
-          "id"
-        >),
-      }));
+    const records: AttendanceRecord[] = snapshot.docs.map((item) => ({
+      id: item.id,
+      ...(item.data() as Omit<AttendanceRecord, "id">),
+    }));
 
-    records.sort((a, b) =>
-      (b.date || "").localeCompare(a.date || "")
-    );
+    records.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 
     setHistory(records);
   }
@@ -326,22 +302,17 @@ export default function EmployeeAttendancePage() {
       const existingQuery = query(
         collection(db, "attendance"),
         where("userId", "==", user.uid),
-        where("date", "==", dateKey)
+        where("date", "==", dateKey),
       );
 
-      const existingSnapshot = await getDocs(
-        existingQuery
-      );
+      const existingSnapshot = await getDocs(existingQuery);
 
       if (!existingSnapshot.empty) {
         const existingDoc = existingSnapshot.docs[0];
-        const existing =
-          existingDoc.data() as AttendanceRecord;
+        const existing = existingDoc.data() as AttendanceRecord;
 
         if (existing.checkIn) {
-          setError(
-            "You have already checked in today."
-          );
+          setError("You have already checked in today.");
 
           setTodayRecord({
             ...existing,
@@ -352,11 +323,7 @@ export default function EmployeeAttendancePage() {
         }
       }
 
-      const attendanceRef = doc(
-        db,
-        "attendance",
-        `${user.uid}_${dateKey}`
-      );
+      const attendanceRef = doc(db, "attendance", `${user.uid}_${dateKey}`);
 
       const status = getAttendanceStatus(now);
 
@@ -371,15 +338,11 @@ export default function EmployeeAttendancePage() {
           user.email?.split("@")[0] ||
           "Employee",
 
-        userEmail:
-          profile.email ||
-          user.email ||
-          "",
+        userEmail: profile.email || user.email || "",
 
         role: profile.role || "employee",
 
-        department:
-          profile.department || "development",
+        department: profile.department || "development",
 
         date: dateKey,
 
@@ -407,22 +370,13 @@ export default function EmployeeAttendancePage() {
         id: attendanceRef.id,
       });
 
-      setSuccess(
-        `Checked in successfully at ${formatTime(
-          checkInISO
-        )}.`
-      );
+      setSuccess(`Checked in successfully at ${formatTime(checkInISO)}.`);
 
       await loadAttendance(user.uid);
     } catch (err) {
-      console.error(
-        "CHECK IN ERROR:",
-        err
-      );
+      console.error("CHECK IN ERROR:", err);
 
-      setError(
-        "Check-in failed. Please try again."
-      );
+      setError("Check-in failed. Please try again.");
     } finally {
       setActionLoading(false);
     }
@@ -440,34 +394,22 @@ export default function EmployeeAttendancePage() {
 
     try {
       if (!todayRecord.checkIn) {
-        setError(
-          "You need to check in before checking out."
-        );
+        setError("You need to check in before checking out.");
 
         return;
       }
 
       if (todayRecord.checkOut) {
-        setError(
-          "You have already checked out today."
-        );
+        setError("You have already checked out today.");
 
         return;
       }
 
       const now = new Date();
 
-      const hours = calculateHours(
-        todayRecord.checkIn,
-        undefined,
-        now
-      );
+      const hours = calculateHours(todayRecord.checkIn, undefined, now);
 
-      const attendanceRef = doc(
-        db,
-        "attendance",
-        todayRecord.id
-      );
+      const attendanceRef = doc(db, "attendance", todayRecord.id);
 
       await updateDoc(attendanceRef, {
         checkOut: now.toISOString(),
@@ -490,21 +432,14 @@ export default function EmployeeAttendancePage() {
       });
 
       setSuccess(
-        `Checked out successfully at ${formatTime(
-          now.toISOString()
-        )}.`
+        `Checked out successfully at ${formatTime(now.toISOString())}.`,
       );
 
       await loadAttendance(user.uid);
     } catch (err) {
-      console.error(
-        "CHECK OUT ERROR:",
-        err
-      );
+      console.error("CHECK OUT ERROR:", err);
 
-      setError(
-        "Check-out failed. Please try again."
-      );
+      setError("Check-out failed. Please try again.");
     } finally {
       setActionLoading(false);
     }
@@ -539,51 +474,39 @@ export default function EmployeeAttendancePage() {
     return calculateHours(
       todayRecord.checkIn,
       todayRecord.checkOut,
-      currentTime
+      currentTime,
     );
   }, [todayRecord, currentTime]);
 
-  const hasCheckedIn = Boolean(
-    todayRecord?.checkIn
-  );
+  const hasCheckedIn = Boolean(todayRecord?.checkIn);
 
-  const hasCheckedOut = Boolean(
-    todayRecord?.checkOut
-  );
+  const hasCheckedOut = Boolean(todayRecord?.checkOut);
 
-  const todayStatus =
-    todayRecord?.status || "Not Checked In";
+  const todayStatus = todayRecord?.status || "Not Checked In";
 
   const totalDays = history.length;
 
   const presentDays = history.filter(
-    (item) =>
-      item.status === "Present" ||
-      item.status === "Late"
+    (item) => item.status === "Present" || item.status === "Late",
   ).length;
 
-  const lateDays = history.filter(
-    (item) => item.status === "Late"
-  ).length;
+  const lateDays = history.filter((item) => item.status === "Late").length;
 
   const averageHours =
     history.length > 0
-      ? history.reduce(
-          (sum, item) =>
-            sum + Number(item.totalHours || 0),
-          0
-        ) / history.length
+      ? history.reduce((sum, item) => sum + Number(item.totalHours || 0), 0) /
+        history.length
       : 0;
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#050507] text-white flex items-center justify-center">
+      <main className="min-h-screen bg-white text-[var(--brand-black)] flex items-center justify-center">
         <div className="text-center">
-          <div className="mx-auto mb-5 h-12 w-12 rounded-2xl bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center animate-pulse">
+          <div className="mx-auto mb-5 h-12 w-12 rounded-2xl bg-[var(--brand-red)] flex items-center justify-center animate-pulse">
             <Sparkles size={22} />
           </div>
 
-          <p className="text-white/50">
+          <p className="text-[var(--brand-medium-gray)]">
             Loading attendance...
           </p>
         </div>
@@ -592,68 +515,44 @@ export default function EmployeeAttendancePage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#050507] text-white">
+    <main className="min-h-screen bg-white text-[var(--brand-black)]">
       {/* BACKGROUND */}
 
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -left-40 h-96 w-96 rounded-full bg-violet-600/10 blur-[120px]" />
-
-        <div className="absolute top-1/2 -right-40 h-96 w-96 rounded-full bg-blue-600/10 blur-[120px]" />
-
-        <div className="absolute bottom-0 left-1/2 h-80 w-80 rounded-full bg-emerald-600/5 blur-[120px]" />
-      </div>
+      <div className="fixed inset-0 pointer-events-none overflow-hidden"></div>
 
       <div className="relative flex min-h-screen">
         {/* SIDEBAR */}
 
         <aside
-          className={`fixed z-50 inset-y-0 left-0 w-[270px] border-r border-white/[0.06] bg-[#08080c]/95 backdrop-blur-xl transform transition-transform duration-300 lg:translate-x-0 ${
-            menuOpen
-              ? "translate-x-0"
-              : "-translate-x-full"
+          className={`fixed z-50 inset-y-0 left-0 w-[270px] border-r border-[var(--brand-border)] bg-white  transform transition-transform duration-300 lg:translate-x-0 ${
+            menuOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
           <div className="h-full flex flex-col">
             {/* BRAND */}
 
-            <div className="h-[82px] px-6 flex items-center border-b border-white/[0.06]">
-              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center shadow-lg shadow-violet-600/20">
-                <span className="text-xl">
-                  🐜
-                </span>
-              </div>
-
-              <div className="ml-3">
-                <div className="font-bold tracking-tight">
-                  THE ANT MEDIA
-                </div>
-
-                <div className="text-[11px] text-white/35">
-                  Internal Management
-                </div>
-              </div>
+            <div className="h-[82px] px-6 flex items-center border-b border-[var(--brand-border)]">
+              <BrandLogo className="h-[72px] w-[205px]" priority />
             </div>
 
             {/* PROFILE */}
 
             <div className="p-4">
-              <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.07] p-4">
+              <div className="rounded-2xl border border-[var(--brand-red-secondary)]/15 bg-[var(--brand-red)]/[0.07] p-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-violet-500/15 flex items-center justify-center text-violet-300 font-semibold">
+                  <div className="h-10 w-10 rounded-xl bg-[var(--brand-red)]/15 flex items-center justify-center text-[var(--brand-red)] font-semibold">
                     {initials}
                   </div>
 
                   <div className="min-w-0">
-                    <div className="font-semibold truncate">
-                      {displayName}
-                    </div>
+                    <div className="font-semibold truncate">{displayName}</div>
 
-                    <div className="text-xs text-white/40 capitalize">
+                    <div className="text-xs text-[var(--brand-black)] capitalize">
                       {profile?.role || "Employee"}
                     </div>
                   </div>
 
-                  <span className="ml-auto h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50" />
+                  <span className="ml-auto h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_2px_8px_rgba(0,0,0,0.04)]" />
                 </div>
               </div>
             </div>
@@ -661,7 +560,7 @@ export default function EmployeeAttendancePage() {
             {/* NAVIGATION */}
 
             <nav className="px-3 space-y-1">
-              <div className="px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/25">
+              <div className="px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-[var(--brand-black)]">
                 Workspace
               </div>
 
@@ -705,10 +604,10 @@ export default function EmployeeAttendancePage() {
 
             {/* LOGOUT */}
 
-            <div className="mt-auto p-4 border-t border-white/[0.06]">
+            <div className="mt-auto p-4 border-t border-[var(--brand-border)]">
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-white/45 hover:text-white hover:bg-white/[0.05] transition"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[var(--brand-black)] hover:text-[var(--brand-black)] hover:bg-[var(--brand-red-light)] transition"
               >
                 <LogOut size={18} />
 
@@ -732,43 +631,36 @@ export default function EmployeeAttendancePage() {
         <section className="flex-1 lg:ml-[270px] min-w-0">
           {/* TOPBAR */}
 
-          <header className="sticky top-0 z-30 h-[82px] border-b border-white/[0.06] bg-[#050507]/80 backdrop-blur-xl">
+          <header className="sticky top-0 z-30 h-[82px] border-b border-[var(--brand-border)] bg-white ">
             <div className="h-full px-5 lg:px-8 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() =>
-                    setMenuOpen(true)
-                  }
-                  className="lg:hidden h-10 w-10 rounded-xl border border-white/10 flex items-center justify-center"
+                  onClick={() => setMenuOpen(true)}
+                  className="lg:hidden h-10 w-10 rounded-xl border border-[var(--brand-border)] flex items-center justify-center"
                 >
                   <Menu size={19} />
                 </button>
 
                 <div>
-                  <div className="text-xs text-white/30">
+                  <div className="text-xs text-[var(--brand-black)]">
                     Employee / Workspace
                   </div>
 
-                  <h1 className="text-xl font-semibold">
-                    Attendance
-                  </h1>
+                  <h1 className="text-xl font-semibold">Attendance</h1>
                 </div>
               </div>
 
               <div className="flex items-center gap-3">
                 <div className="hidden sm:flex items-center gap-3 px-2">
-                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center font-semibold">
+                  <div className="h-10 w-10 rounded-xl bg-[var(--brand-red)] flex items-center justify-center font-semibold">
                     {initials}
                   </div>
 
                   <div className="hidden md:block">
-                    <div className="text-sm font-semibold">
-                      {displayName}
-                    </div>
+                    <div className="text-sm font-semibold">{displayName}</div>
 
-                    <div className="text-[11px] text-white/35 capitalize">
-                      {profile?.department ||
-                        "Workspace"}
+                    <div className="text-[11px] text-[var(--brand-black)] capitalize">
+                      {profile?.department || "Workspace"}
                     </div>
                   </div>
                 </div>
@@ -782,58 +674,48 @@ export default function EmployeeAttendancePage() {
             {/* HEADER */}
 
             <div className="mb-8">
-              <div className="flex items-center gap-2 text-violet-300 text-sm mb-3">
+              <div className="flex items-center gap-2 text-[var(--brand-red)] text-sm mb-3">
                 <Clock3 size={16} />
 
-                <span>
-                  Daily attendance
-                </span>
+                <span>Daily attendance</span>
               </div>
 
               <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-5">
                 <div>
                   <h2 className="text-4xl lg:text-5xl font-bold tracking-tight">
                     Keep your workday
-                    <span className="block bg-gradient-to-r from-violet-300 via-white to-blue-300 bg-clip-text text-transparent">
+                    <span className="block text-[var(--brand-red)]">
                       on track.
                     </span>
                   </h2>
 
-                  <p className="mt-4 text-white/40 max-w-2xl">
-                    Check in when you start, check out
-                    when you finish, and keep your
-                    attendance history automatically
-                    updated.
+                  <p className="mt-4 text-[var(--brand-medium-gray)] max-w-2xl">
+                    Check in when you start, check out when you finish, and keep
+                    your attendance history automatically updated.
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-4 min-w-[230px]">
-                  <div className="text-xs text-white/30 uppercase tracking-wider">
+                <div className="rounded-2xl border border-[var(--brand-border)] bg-white px-5 py-4 min-w-[230px]">
+                  <div className="text-xs text-[var(--brand-black)] uppercase tracking-wider">
                     Current time
                   </div>
 
                   <div className="mt-1 text-2xl font-bold">
-                    {currentTime.toLocaleTimeString(
-                      "en-IN",
-                      {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                        hour12: true,
-                      }
-                    )}
+                    {currentTime.toLocaleTimeString("en-IN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                      hour12: true,
+                    })}
                   </div>
 
-                  <div className="text-xs text-white/35 mt-1">
-                    {currentTime.toLocaleDateString(
-                      "en-IN",
-                      {
-                        weekday: "long",
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                      }
-                    )}
+                  <div className="text-xs text-[var(--brand-black)] mt-1">
+                    {currentTime.toLocaleDateString("en-IN", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
                   </div>
                 </div>
               </div>
@@ -855,16 +737,14 @@ export default function EmployeeAttendancePage() {
               >
                 <CircleAlert
                   size={19}
-                  className="text-red-300 mt-0.5 shrink-0"
+                  className="text-red-700 mt-0.5 shrink-0"
                 />
 
-                <div className="text-sm text-red-200">
-                  {error}
-                </div>
+                <div className="text-sm text-red-700">{error}</div>
 
                 <button
                   onClick={() => setError("")}
-                  className="ml-auto text-white/30 hover:text-white"
+                  className="ml-auto text-[var(--brand-black)] hover:text-[var(--brand-black)]"
                 >
                   <X size={17} />
                 </button>
@@ -885,18 +765,14 @@ export default function EmployeeAttendancePage() {
               >
                 <CheckCircle2
                   size={19}
-                  className="text-emerald-300 mt-0.5 shrink-0"
+                  className="text-emerald-700 mt-0.5 shrink-0"
                 />
 
-                <div className="text-sm text-emerald-200">
-                  {success}
-                </div>
+                <div className="text-sm text-emerald-700">{success}</div>
 
                 <button
-                  onClick={() =>
-                    setSuccess("")
-                  }
-                  className="ml-auto text-white/30 hover:text-white"
+                  onClick={() => setSuccess("")}
+                  className="ml-auto text-[var(--brand-black)] hover:text-[var(--brand-black)]"
                 >
                   <X size={17} />
                 </button>
@@ -917,47 +793,39 @@ export default function EmployeeAttendancePage() {
                   opacity: 1,
                   y: 0,
                 }}
-                className="relative overflow-hidden rounded-3xl border border-white/[0.07] bg-white/[0.025] p-6 lg:p-8"
+                className="relative overflow-hidden rounded-3xl border border-[var(--brand-border)] bg-white p-6 lg:p-8"
               >
-                <div className="absolute -right-20 -top-20 h-60 w-60 rounded-full bg-violet-600/10 blur-[80px]" />
-
                 <div className="relative">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5">
                     <div>
-                      <div className="text-xs uppercase tracking-[0.2em] text-violet-300/70">
+                      <div className="text-xs uppercase tracking-[0.2em] text-[var(--brand-red)]">
                         Today
                       </div>
 
                       <h3 className="mt-2 text-2xl font-bold">
-                        {currentTime.toLocaleDateString(
-                          "en-IN",
-                          {
-                            weekday: "long",
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          }
-                        )}
+                        {currentTime.toLocaleDateString("en-IN", {
+                          weekday: "long",
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
                       </h3>
 
-                      <p className="mt-2 text-sm text-white/35">
-                        {profile?.department ||
-                          "Workspace"}{" "}
-                        •{" "}
-                        {profile?.role ||
-                          "Employee"}
+                      <p className="mt-2 text-sm text-[var(--brand-medium-gray)]">
+                        {profile?.department || "Workspace"} •{" "}
+                        {profile?.role || "Employee"}
                       </p>
                     </div>
 
                     <div
                       className={`px-3 py-2 rounded-xl border text-sm font-semibold ${
                         !hasCheckedIn
-                          ? "border-white/10 bg-white/[0.03] text-white/50"
+                          ? "border-[var(--brand-border)] bg-white text-[var(--brand-black)]"
                           : hasCheckedOut
-                          ? "border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-300"
-                          : todayStatus === "Late"
-                          ? "border-amber-500/20 bg-amber-500/[0.06] text-amber-300"
-                          : "border-blue-500/20 bg-blue-500/[0.06] text-blue-300"
+                            ? "border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-700"
+                            : todayStatus === "Late"
+                              ? "border-amber-500/20 bg-amber-500/[0.06] text-amber-700"
+                              : "border-[var(--brand-red-secondary)]/20 bg-[var(--brand-red)]/[0.06] text-[var(--brand-red)]"
                       }`}
                     >
                       {todayStatus}
@@ -970,25 +838,19 @@ export default function EmployeeAttendancePage() {
                     <TimeCard
                       icon={<Clock3 size={18} />}
                       label="Check in"
-                      value={formatTime(
-                        todayRecord?.checkIn
-                      )}
+                      value={formatTime(todayRecord?.checkIn)}
                     />
 
                     <TimeCard
                       icon={<LogOut size={18} />}
                       label="Check out"
-                      value={formatTime(
-                        todayRecord?.checkOut
-                      )}
+                      value={formatTime(todayRecord?.checkOut)}
                     />
 
                     <TimeCard
                       icon={<Timer size={18} />}
                       label="Working time"
-                      value={formatDuration(
-                        workingHours
-                      )}
+                      value={formatDuration(workingHours)}
                     />
                   </div>
 
@@ -999,23 +861,16 @@ export default function EmployeeAttendancePage() {
                       <button
                         onClick={handleCheckIn}
                         disabled={actionLoading}
-                        className="w-full py-4 rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 font-semibold shadow-lg shadow-violet-600/20 hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="w-full py-4 rounded-2xl bg-[var(--brand-red)] font-semibold shadow-[0_2px_8px_rgba(0,0,0,0.04)] shadow-black/20 hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         {actionLoading ? (
                           <>
-                            <Loader2
-                              size={18}
-                              className="animate-spin"
-                            />
-
+                            <Loader2 size={18} className="animate-spin" />
                             Checking in...
                           </>
                         ) : (
                           <>
-                            <CheckCircle2
-                              size={18}
-                            />
-
+                            <CheckCircle2 size={18} />
                             Check In
                           </>
                         )}
@@ -1024,31 +879,23 @@ export default function EmployeeAttendancePage() {
                       <button
                         onClick={handleCheckOut}
                         disabled={actionLoading}
-                        className="w-full py-4 rounded-2xl border border-orange-500/20 bg-orange-500/[0.07] text-orange-200 font-semibold hover:bg-orange-500/[0.12] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="w-full py-4 rounded-2xl border border-orange-500/20 bg-orange-500/[0.07] text-orange-700 font-semibold hover:bg-orange-500/[0.12] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         {actionLoading ? (
                           <>
-                            <Loader2
-                              size={18}
-                              className="animate-spin"
-                            />
-
+                            <Loader2 size={18} className="animate-spin" />
                             Checking out...
                           </>
                         ) : (
                           <>
                             <LogOut size={18} />
-
                             Check Out
                           </>
                         )}
                       </button>
                     ) : (
-                      <div className="w-full py-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-300 font-semibold flex items-center justify-center gap-2">
-                        <CheckCircle2
-                          size={18}
-                        />
-
+                      <div className="w-full py-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-700 font-semibold flex items-center justify-center gap-2">
+                        <CheckCircle2 size={18} />
                         Workday completed
                       </div>
                     )}
@@ -1056,18 +903,16 @@ export default function EmployeeAttendancePage() {
 
                   {/* INFO */}
 
-                  <div className="mt-5 flex items-start gap-3 rounded-2xl border border-white/[0.05] bg-black/10 p-4">
+                  <div className="mt-5 flex items-start gap-3 rounded-2xl border border-[var(--brand-border)] bg-white p-4">
                     <Sparkles
                       size={18}
-                      className="text-violet-300 shrink-0 mt-0.5"
+                      className="text-[var(--brand-red)] shrink-0 mt-0.5"
                     />
 
-                    <p className="text-xs leading-5 text-white/35">
-                      Your attendance is saved
-                      automatically to the Ant Media
-                      workspace. Check in once when you
-                      start work and check out when you
-                      finish.
+                    <p className="text-xs leading-5 text-[var(--brand-medium-gray)]">
+                      Your attendance is saved automatically to the Ant Media
+                      workspace. Check in once when you start work and check out
+                      when you finish.
                     </p>
                   </div>
                 </div>
@@ -1093,9 +938,7 @@ export default function EmployeeAttendancePage() {
                 <StatCard
                   icon={<Clock3 size={19} />}
                   label="Average Hours"
-                  value={averageHours.toFixed(
-                    1
-                  )}
+                  value={averageHours.toFixed(1)}
                   description="Average recorded hours"
                   suffix="h"
                 />
@@ -1112,148 +955,122 @@ export default function EmployeeAttendancePage() {
 
             {/* HISTORY */}
 
-            <section className="mt-6 rounded-3xl border border-white/[0.07] bg-white/[0.018] overflow-hidden">
-              <div className="p-5 lg:p-6 border-b border-white/[0.06] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <section className="mt-6 rounded-3xl border border-[var(--brand-border)] bg-white overflow-hidden">
+              <div className="p-5 lg:p-6 border-b border-[var(--brand-border)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <History
-                      size={18}
-                      className="text-violet-300"
-                    />
+                    <History size={18} className="text-[var(--brand-red)]" />
 
                     <h3 className="text-lg font-semibold">
                       Attendance History
                     </h3>
                   </div>
 
-                  <p className="text-sm text-white/35 mt-1">
+                  <p className="text-sm text-[var(--brand-medium-gray)] mt-1">
                     Your personal attendance records
                   </p>
                 </div>
 
-                <div className="text-xs text-white/30">
+                <div className="text-xs text-[var(--brand-black)]">
                   {history.length} record
-                  {history.length === 1
-                    ? ""
-                    : "s"}
+                  {history.length === 1 ? "" : "s"}
                 </div>
               </div>
 
               {history.length === 0 ? (
                 <div className="py-20 text-center">
-                  <div className="mx-auto h-14 w-14 rounded-2xl bg-violet-500/10 flex items-center justify-center">
-                    <Clock3
-                      size={24}
-                      className="text-violet-300"
-                    />
+                  <div className="mx-auto h-14 w-14 rounded-2xl bg-[var(--brand-red)]/10 flex items-center justify-center">
+                    <Clock3 size={24} className="text-[var(--brand-red)]" />
                   </div>
 
                   <h4 className="mt-4 font-semibold">
                     No attendance records yet
                   </h4>
 
-                  <p className="mt-1 text-sm text-white/35">
-                    Your first check-in will appear
-                    here.
+                  <p className="mt-1 text-sm text-[var(--brand-medium-gray)]">
+                    Your first check-in will appear here.
                   </p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[760px]">
                     <thead>
-                      <tr className="border-b border-white/[0.05] text-left">
-                        <th className="px-6 py-4 text-[10px] uppercase tracking-[0.15em] text-white/25 font-semibold">
+                      <tr className="border-b border-[var(--brand-border)] text-left">
+                        <th className="px-6 py-4 text-[10px] uppercase tracking-[0.15em] text-[var(--brand-black)] font-semibold">
                           Date
                         </th>
 
-                        <th className="px-6 py-4 text-[10px] uppercase tracking-[0.15em] text-white/25 font-semibold">
+                        <th className="px-6 py-4 text-[10px] uppercase tracking-[0.15em] text-[var(--brand-black)] font-semibold">
                           Check In
                         </th>
 
-                        <th className="px-6 py-4 text-[10px] uppercase tracking-[0.15em] text-white/25 font-semibold">
+                        <th className="px-6 py-4 text-[10px] uppercase tracking-[0.15em] text-[var(--brand-black)] font-semibold">
                           Check Out
                         </th>
 
-                        <th className="px-6 py-4 text-[10px] uppercase tracking-[0.15em] text-white/25 font-semibold">
+                        <th className="px-6 py-4 text-[10px] uppercase tracking-[0.15em] text-[var(--brand-black)] font-semibold">
                           Hours
                         </th>
 
-                        <th className="px-6 py-4 text-[10px] uppercase tracking-[0.15em] text-white/25 font-semibold">
+                        <th className="px-6 py-4 text-[10px] uppercase tracking-[0.15em] text-[var(--brand-black)] font-semibold">
                           Status
                         </th>
                       </tr>
                     </thead>
 
                     <tbody>
-                      {history.map(
-                        (record, index) => {
-                          const hours =
-                            record.totalHours ||
-                            calculateHours(
-                              record.checkIn,
-                              record.checkOut
-                            );
+                      {history.map((record, index) => {
+                        const hours =
+                          record.totalHours ||
+                          calculateHours(record.checkIn, record.checkOut);
 
-                          return (
-                            <motion.tr
-                              key={record.id}
-                              initial={{
-                                opacity: 0,
-                              }}
-                              animate={{
-                                opacity: 1,
-                              }}
-                              transition={{
-                                delay:
-                                  index * 0.03,
-                              }}
-                              className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.015] transition"
-                            >
-                              <td className="px-6 py-5">
-                                <div className="font-medium">
-                                  {formatDate(
-                                    record.date
-                                  )}
-                                </div>
-                              </td>
+                        return (
+                          <motion.tr
+                            key={record.id}
+                            initial={{
+                              opacity: 0,
+                            }}
+                            animate={{
+                              opacity: 1,
+                            }}
+                            transition={{
+                              delay: index * 0.03,
+                            }}
+                            className="border-b border-[var(--brand-border)] last:border-0 hover:bg-[var(--brand-red-light)] transition"
+                          >
+                            <td className="px-6 py-5">
+                              <div className="font-medium">
+                                {formatDate(record.date)}
+                              </div>
+                            </td>
 
-                              <td className="px-6 py-5 text-sm text-white/55">
-                                {formatTime(
-                                  record.checkIn
-                                )}
-                              </td>
+                            <td className="px-6 py-5 text-sm text-[var(--brand-black)]">
+                              {formatTime(record.checkIn)}
+                            </td>
 
-                              <td className="px-6 py-5 text-sm text-white/55">
-                                {formatTime(
-                                  record.checkOut
-                                )}
-                              </td>
+                            <td className="px-6 py-5 text-sm text-[var(--brand-black)]">
+                              {formatTime(record.checkOut)}
+                            </td>
 
-                              <td className="px-6 py-5">
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Timer
-                                    size={15}
-                                    className="text-violet-300"
-                                  />
-
-                                  {formatDuration(
-                                    Number(hours)
-                                  )}
-                                </div>
-                              </td>
-
-                              <td className="px-6 py-5">
-                                <StatusBadge
-                                  status={
-                                    record.status ||
-                                    "Present"
-                                  }
+                            <td className="px-6 py-5">
+                              <div className="flex items-center gap-2 text-sm">
+                                <Timer
+                                  size={15}
+                                  className="text-[var(--brand-red)]"
                                 />
-                              </td>
-                            </motion.tr>
-                          );
-                        }
-                      )}
+
+                                {formatDuration(Number(hours))}
+                              </div>
+                            </td>
+
+                            <td className="px-6 py-5">
+                              <StatusBadge
+                                status={record.status || "Present"}
+                              />
+                            </td>
+                          </motion.tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1284,15 +1101,11 @@ export default function EmployeeAttendancePage() {
 
             {/* FOOTER */}
 
-            <footer className="mt-10 pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row justify-between gap-3 text-xs text-white/25">
-              <span>
-                © 2026 The Ant Media • Internal
-                Management System
-              </span>
+            <footer className="mt-10 pt-6 border-t border-[var(--brand-border)] flex flex-col sm:flex-row justify-between gap-3 text-xs text-[var(--brand-black)]">
+              <span>© 2026 The Ant Media • Internal Management System</span>
 
               <span className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-
                 Secure workspace
               </span>
             </footer>
@@ -1325,8 +1138,8 @@ function SidebarItem({
       }}
       className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition ${
         active
-          ? "bg-violet-500/10 text-violet-300 border border-violet-500/10"
-          : "text-white/40 hover:text-white hover:bg-white/[0.04]"
+          ? "bg-[var(--brand-red)]/10 text-[var(--brand-red)] border border-[var(--brand-red-secondary)]/10"
+          : "text-[var(--brand-black)] hover:text-[var(--brand-black)] hover:bg-[var(--brand-red-light)]"
       }`}
     >
       {icon}
@@ -1334,10 +1147,7 @@ function SidebarItem({
       <span>{label}</span>
 
       {active && (
-        <ChevronRight
-          size={15}
-          className="ml-auto text-violet-300/60"
-        />
+        <ChevronRight size={15} className="ml-auto text-[var(--brand-red)]" />
       )}
     </button>
   );
@@ -1357,18 +1167,14 @@ function TimeCard({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-black/10 p-4">
-      <div className="flex items-center gap-2 text-white/30">
+    <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-4">
+      <div className="flex items-center gap-2 text-[var(--brand-black)]">
         {icon}
 
-        <span className="text-xs">
-          {label}
-        </span>
+        <span className="text-xs">{label}</span>
       </div>
 
-      <div className="mt-3 text-xl font-bold">
-        {value}
-      </div>
+      <div className="mt-3 text-xl font-bold">{value}</div>
     </div>
   );
 }
@@ -1395,26 +1201,22 @@ function StatCard({
   return (
     <motion.div
       whileHover={{ y: -2 }}
-      className="rounded-2xl border border-white/[0.07] bg-white/[0.018] p-5"
+      className="rounded-2xl border border-[var(--brand-border)] bg-white p-5"
     >
-      <div className="h-10 w-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-300">
+      <div className="h-10 w-10 rounded-xl bg-[var(--brand-red)]/10 flex items-center justify-center text-[var(--brand-red)]">
         {icon}
       </div>
 
-      <div className="mt-5 text-sm text-white/35">
-        {label}
-      </div>
+      <div className="mt-5 text-sm text-[var(--brand-black)]">{label}</div>
 
       <div
         className={`mt-1 text-3xl font-bold ${
-          danger
-            ? "text-red-300"
-            : "text-white"
+          danger ? "text-red-700" : "text-[var(--brand-black)]"
         }`}
       >
         {value}
         {suffix && (
-          <span className="text-base text-white/30 ml-1">
+          <span className="text-base text-[var(--brand-black)] ml-1">
             {suffix}
           </span>
         )}
@@ -1422,9 +1224,7 @@ function StatCard({
 
       <div
         className={`text-xs mt-1 ${
-          danger
-            ? "text-red-300/60"
-            : "text-white/25"
+          danger ? "text-red-700/60" : "text-[var(--brand-black)]"
         }`}
       >
         {description}
@@ -1437,35 +1237,27 @@ function StatCard({
    STATUS BADGE
 ========================================================= */
 
-function StatusBadge({
-  status,
-}: {
-  status: string;
-}) {
-  const normalized =
-    status.toLowerCase();
+function StatusBadge({ status }: { status: string }) {
+  const normalized = status.toLowerCase();
 
   let className =
-    "border-white/10 bg-white/[0.03] text-white/50";
+    "border-[var(--brand-border)] bg-white text-[var(--brand-black)]";
 
   if (normalized === "present") {
-    className =
-      "border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-300";
+    className = "border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-700";
   }
 
   if (normalized === "late") {
-    className =
-      "border-amber-500/20 bg-amber-500/[0.06] text-amber-300";
+    className = "border-amber-500/20 bg-amber-500/[0.06] text-amber-700";
   }
 
   if (normalized === "leave") {
     className =
-      "border-blue-500/20 bg-blue-500/[0.06] text-blue-300";
+      "border-[var(--brand-red-secondary)]/20 bg-[var(--brand-red)]/[0.06] text-[var(--brand-red)]";
   }
 
   if (normalized === "absent") {
-    className =
-      "border-red-500/20 bg-red-500/[0.06] text-red-300";
+    className = "border-red-500/20 bg-red-500/[0.06] text-red-700";
   }
 
   return (
@@ -1493,16 +1285,14 @@ function InfoCard({
   text: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.018] p-5">
-      <div className="text-[11px] font-semibold tracking-[0.2em] text-violet-300/70">
+    <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-5">
+      <div className="text-[11px] font-semibold tracking-[0.2em] text-[var(--brand-red)]">
         {number}
       </div>
 
-      <h3 className="mt-4 font-semibold">
-        {title}
-      </h3>
+      <h3 className="mt-4 font-semibold">{title}</h3>
 
-      <p className="mt-2 text-sm leading-6 text-white/35">
+      <p className="mt-2 text-sm leading-6 text-[var(--brand-medium-gray)]">
         {text}
       </p>
     </div>

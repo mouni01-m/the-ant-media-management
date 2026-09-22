@@ -80,31 +80,35 @@ const STATUS_CONFIG: Record<
 > = {
   "TO DO": {
     label: "To Do",
-    className: "bg-white/5 text-white/70 border-white/10",
+    className:
+      "bg-white text-[var(--brand-black)] border-[var(--brand-border)]",
   },
   "IN PROGRESS": {
     label: "In Progress",
-    className: "bg-blue-500/10 text-blue-300 border-blue-500/20",
+    className:
+      "bg-[var(--brand-red)]/10 text-[var(--brand-red)] border-[var(--brand-red-secondary)]/20",
   },
   SUBMITTED: {
     label: "Submitted",
-    className: "bg-violet-500/10 text-violet-300 border-violet-500/20",
+    className:
+      "bg-[var(--brand-red)]/10 text-[var(--brand-red)] border-[var(--brand-red-secondary)]/20",
   },
   REVIEW: {
     label: "Review",
-    className: "bg-violet-500/10 text-violet-300 border-violet-500/20",
+    className:
+      "bg-[var(--brand-red)]/10 text-[var(--brand-red)] border-[var(--brand-red-secondary)]/20",
   },
   "CHANGES REQUESTED": {
     label: "Changes",
-    className: "bg-orange-500/10 text-orange-300 border-orange-500/20",
+    className: "bg-orange-500/10 text-orange-700 border-orange-500/20",
   },
   APPROVED: {
     label: "Approved",
-    className: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
+    className: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
   },
   COMPLETED: {
     label: "Completed",
-    className: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
+    className: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
   },
 };
 
@@ -125,11 +129,11 @@ const PRIORITY_CONFIG: Record<
   },
   HIGH: {
     label: "High",
-    className: "text-orange-300 bg-orange-500/10 border-orange-500/20",
+    className: "text-orange-700 bg-orange-500/10 border-orange-500/20",
   },
   URGENT: {
     label: "Urgent",
-    className: "text-red-300 bg-red-500/10 border-red-500/20",
+    className: "text-red-700 bg-red-500/10 border-red-500/20",
   },
 };
 
@@ -152,9 +156,7 @@ function convertToDate(value: unknown): Date | null {
     }
 
     // Support DD/MM/YYYY
-    const match = value.match(
-      /^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/
-    );
+    const match = value.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
 
     if (match) {
       const day = Number(match[1]);
@@ -182,9 +184,10 @@ function convertToDate(value: unknown): Date | null {
 }
 
 function dateKey(date: Date) {
-  return `${date.getFullYear()}-${String(
-    date.getMonth() + 1
-  ).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+    2,
+    "0",
+  )}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function sameDay(a: Date, b: Date) {
@@ -193,9 +196,7 @@ function sameDay(a: Date, b: Date) {
 
 function isCompleted(status?: string) {
   return (
-    status === "COMPLETED" ||
-    status === "APPROVED" ||
-    status === "Completed"
+    status === "COMPLETED" || status === "APPROVED" || status === "Completed"
   );
 }
 
@@ -204,10 +205,7 @@ function getTaskDeadline(task: Task) {
 }
 
 function getTaskDate(task: Task) {
-  return (
-    convertToDate(task.deadline) ||
-    convertToDate(task.startDate)
-  );
+  return convertToDate(task.deadline) || convertToDate(task.startDate);
 }
 
 function formatTime(time?: string) {
@@ -284,7 +282,7 @@ export default function EmployeeCalendarPage() {
         try {
           const userQuery = query(
             collection(db, "users"),
-            where("__name__", "==", user.uid)
+            where("__name__", "==", user.uid),
           );
 
           const userSnapshot = await getDocs(userQuery);
@@ -326,17 +324,14 @@ export default function EmployeeCalendarPage() {
         const handleQueryFailure = (
           label: string,
           queryError: unknown,
-          kind: "assigned" | "team"
+          kind: "assigned" | "team",
         ) => {
           console.warn(`${label} calendar query failed:`, queryError);
 
           if (kind === "assigned") assignedFailed = true;
           if (kind === "team") teamFailed = true;
 
-          if (
-            (assignedReady || assignedFailed) &&
-            (teamReady || teamFailed)
-          ) {
+          if ((assignedReady || assignedFailed) && (teamReady || teamFailed)) {
             publishTasks();
           }
         };
@@ -347,7 +342,7 @@ export default function EmployeeCalendarPage() {
         try {
           const assignedQuery = query(
             collection(db, "tasks"),
-            where("assignedTo", "==", user.uid)
+            where("assignedTo", "==", user.uid),
           );
 
           unsubscribeAssigned = onSnapshot(
@@ -359,7 +354,7 @@ export default function EmployeeCalendarPage() {
                     (task) =>
                       task.id === change.doc.id &&
                       Array.isArray(task.teamMemberIds) &&
-                      task.teamMemberIds.includes(user.uid)
+                      task.teamMemberIds.includes(user.uid),
                   );
 
                   if (!stillTeamMember) {
@@ -378,11 +373,7 @@ export default function EmployeeCalendarPage() {
               publishTasks();
             },
             (assignedError) =>
-              handleQueryFailure(
-                "Assigned task",
-                assignedError,
-                "assigned"
-              )
+              handleQueryFailure("Assigned task", assignedError, "assigned"),
           );
         } catch (assignedError) {
           handleQueryFailure("Assigned task", assignedError, "assigned");
@@ -391,7 +382,7 @@ export default function EmployeeCalendarPage() {
         try {
           const teamQuery = query(
             collection(db, "tasks"),
-            where("teamMemberIds", "array-contains", user.uid)
+            where("teamMemberIds", "array-contains", user.uid),
           );
 
           unsubscribeTeam = onSnapshot(
@@ -405,8 +396,7 @@ export default function EmployeeCalendarPage() {
                    */
                   const stillAssigned = Array.from(taskMap.values()).some(
                     (task) =>
-                      task.id === change.doc.id &&
-                      task.assignedTo === user.uid
+                      task.id === change.doc.id && task.assignedTo === user.uid,
                   );
 
                   if (!stillAssigned) {
@@ -423,8 +413,7 @@ export default function EmployeeCalendarPage() {
               teamReady = true;
               publishTasks();
             },
-            (teamError) =>
-              handleQueryFailure("Team task", teamError, "team")
+            (teamError) => handleQueryFailure("Team task", teamError, "team"),
           );
         } catch (teamError) {
           handleQueryFailure("Team task", teamError, "team");
@@ -458,7 +447,7 @@ export default function EmployeeCalendarPage() {
           } catch (fallbackError) {
             console.error("Calendar task loading error:", fallbackError);
             setError(
-              "Unable to load your calendar tasks. Please check your connection."
+              "Unable to load your calendar tasks. Please check your connection.",
             );
             setLoading(false);
           }
@@ -475,9 +464,7 @@ export default function EmployeeCalendarPage() {
       } catch (err) {
         console.error("Calendar error:", err);
 
-        setError(
-          "Something went wrong while loading your calendar."
-        );
+        setError("Something went wrong while loading your calendar.");
       } finally {
         setLoading(false);
       }
@@ -500,7 +487,9 @@ export default function EmployeeCalendarPage() {
     const deadline = getTaskDeadline(task);
 
     if (!deadline) {
-      setError("This task does not have a deadline, so it cannot be added to Google Calendar.");
+      setError(
+        "This task does not have a deadline, so it cannot be added to Google Calendar.",
+      );
       return;
     }
 
@@ -510,7 +499,7 @@ export default function EmployeeCalendarPage() {
 
     try {
       const date = `${deadline.getFullYear()}-${String(
-        deadline.getMonth() + 1
+        deadline.getMonth() + 1,
       ).padStart(2, "0")}-${String(deadline.getDate()).padStart(2, "0")}`;
 
       const time = task.deadlineTime || "09:00";
@@ -523,7 +512,9 @@ export default function EmployeeCalendarPage() {
           task.department ? `Department: ${task.department}` : "",
           task.taskType ? `Task type: ${task.taskType}` : "",
           `Status: ${task.status || "TO DO"}`,
-        ].filter(Boolean).join("\n"),
+        ]
+          .filter(Boolean)
+          .join("\n"),
         date,
         time,
         reminderMinutes: 60,
@@ -539,7 +530,7 @@ export default function EmployeeCalendarPage() {
           const updated = await updateGoogleCalendarEvent(
             accessToken,
             existingEventId,
-            calendarInput
+            calendarInput,
           );
           eventId = updated.id || existingEventId;
         } catch (updateError) {
@@ -549,20 +540,23 @@ export default function EmployeeCalendarPage() {
           const message =
             updateError instanceof Error ? updateError.message : "";
 
-          if (!message.includes("404") && !message.toLowerCase().includes("not found")) {
+          if (
+            !message.includes("404") &&
+            !message.toLowerCase().includes("not found")
+          ) {
             throw updateError;
           }
 
           const created = await createGoogleCalendarEvent(
             accessToken,
-            calendarInput
+            calendarInput,
           );
           eventId = created.id;
         }
       } else {
         const created = await createGoogleCalendarEvent(
           accessToken,
-          calendarInput
+          calendarInput,
         );
         eventId = created.id;
       }
@@ -576,26 +570,26 @@ export default function EmployeeCalendarPage() {
           employeeGoogleCalendarEventId: eventId,
           calendarSyncedAt: new Date(),
           calendarSyncedBy: currentUser.uid,
-        })
+        }),
       );
 
       setSyncMessage(
         `${task.title || "Task"} ${
           existingEventId ? "is synced with" : "was added to"
-        } your Google Calendar.`
+        } your Google Calendar.`,
       );
 
       window.open(
         getGoogleCalendarEventUrl(eventId),
         "_blank",
-        "noopener,noreferrer"
+        "noopener,noreferrer",
       );
     } catch (syncError) {
       console.error("Google Calendar sync error:", syncError);
       setError(
         syncError instanceof Error
           ? syncError.message
-          : "Unable to sync this task to Google Calendar."
+          : "Unable to sync this task to Google Calendar.",
       );
     } finally {
       setSyncingTaskId(null);
@@ -614,20 +608,11 @@ export default function EmployeeCalendarPage() {
     const firstDay = new Date(year, month, 1);
 
     // Monday = 0, Sunday = 6
-    const startingDay =
-      firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+    const startingDay = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
 
-    const daysInMonth = new Date(
-      year,
-      month + 1,
-      0
-    ).getDate();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-    const previousMonthDays = new Date(
-      year,
-      month,
-      0
-    ).getDate();
+    const previousMonthDays = new Date(year, month, 0).getDate();
 
     const cells: {
       date: Date;
@@ -637,11 +622,7 @@ export default function EmployeeCalendarPage() {
     // Previous month's trailing dates
     for (let i = startingDay - 1; i >= 0; i--) {
       cells.push({
-        date: new Date(
-          year,
-          month - 1,
-          previousMonthDays - i
-        ),
+        date: new Date(year, month - 1, previousMonthDays - i),
         currentMonth: false,
       });
     }
@@ -725,11 +706,7 @@ export default function EmployeeCalendarPage() {
     return filteredTasks.filter((task) => {
       const deadline = getTaskDeadline(task);
 
-      return (
-        deadline &&
-        deadline < now &&
-        !isCompleted(task.status)
-      );
+      return deadline && deadline < now && !isCompleted(task.status);
     });
   }, [filteredTasks]);
 
@@ -747,34 +724,20 @@ export default function EmployeeCalendarPage() {
 
   const goPreviousMonth = () => {
     setCurrentMonth(
-      new Date(
-        currentMonth.getFullYear(),
-        currentMonth.getMonth() - 1,
-        1
-      )
+      new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1),
     );
   };
 
   const goNextMonth = () => {
     setCurrentMonth(
-      new Date(
-        currentMonth.getFullYear(),
-        currentMonth.getMonth() + 1,
-        1
-      )
+      new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1),
     );
   };
 
   const goToday = () => {
     const today = new Date();
 
-    setCurrentMonth(
-      new Date(
-        today.getFullYear(),
-        today.getMonth(),
-        1
-      )
-    );
+    setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1));
 
     setSelectedDate(today);
   };
@@ -788,43 +751,38 @@ export default function EmployeeCalendarPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#050509] text-white">
+    <main className="min-h-screen bg-white text-[var(--brand-black)]">
       {/* Background glow */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -left-40 -top-40 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
-        <div className="absolute right-0 top-40 h-96 w-96 rounded-full bg-blue-600/10 blur-3xl" />
-      </div>
+      <div className="pointer-events-none fixed inset-0 overflow-hidden"></div>
 
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-white/[0.07] bg-[#050509]/90 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-[var(--brand-border)] bg-white ">
         <div className="mx-auto flex h-20 max-w-[1600px] items-center justify-between px-5 md:px-8">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push("/employee")}
-              className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/70 transition hover:border-violet-400/30 hover:bg-violet-500/10 hover:text-white"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--brand-border)] bg-white text-[var(--brand-black)] transition hover:border-[var(--brand-red-secondary)]/30 hover:bg-[var(--brand-red)]/10 hover:text-[var(--brand-black)]"
               aria-label="Back to employee dashboard"
             >
               <ArrowLeft size={19} />
             </button>
 
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-300">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-red)]">
                 Employee / Workspace
               </p>
 
-              <h1 className="mt-1 text-xl font-bold md:text-2xl">
-                Calendar
-              </h1>
+              <h1 className="mt-1 text-xl font-bold md:text-2xl">Calendar</h1>
             </div>
           </div>
 
           <div className="hidden items-center gap-3 sm:flex">
-            <div className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/5 px-4 py-2 text-xs font-medium text-emerald-300">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.7)]" />
+            <div className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/5 px-4 py-2 text-xs font-medium text-emerald-700">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-sm" />
               Workspace Active
             </div>
 
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-blue-600 font-bold shadow-lg shadow-violet-500/20">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--brand-red)] font-bold shadow-[0_2px_8px_rgba(0,0,0,0.04)] shadow-black/20">
               {userName.charAt(0).toUpperCase()}
             </div>
           </div>
@@ -834,7 +792,7 @@ export default function EmployeeCalendarPage() {
       <div className="relative mx-auto max-w-[1600px] px-5 py-8 md:px-8 md:py-10">
         {/* Page heading */}
         <section className="mb-8">
-          <div className="mb-3 flex items-center gap-2 text-sm font-medium text-violet-300">
+          <div className="mb-3 flex items-center gap-2 text-sm font-medium text-[var(--brand-red)]">
             <CalendarDays size={17} />
             <span>Work schedule & deadlines</span>
           </div>
@@ -845,15 +803,15 @@ export default function EmployeeCalendarPage() {
                 Plan your work.
               </h2>
 
-              <p className="mt-3 max-w-2xl text-base text-white/45 md:text-lg">
-                Keep track of assigned work, deadlines and upcoming
-                deliveries from one place.
+              <p className="mt-3 max-w-2xl text-base text-[var(--brand-medium-gray)] md:text-lg">
+                Keep track of assigned work, deadlines and upcoming deliveries
+                from one place.
               </p>
             </div>
 
             <button
               onClick={goToday}
-              className="w-fit rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/80 transition hover:border-violet-400/30 hover:bg-violet-500/10 hover:text-white"
+              className="w-fit rounded-xl border border-[var(--brand-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--brand-black)] transition hover:border-[var(--brand-red-secondary)]/30 hover:bg-[var(--brand-red)]/10 hover:text-[var(--brand-black)]"
             >
               Today
             </button>
@@ -862,13 +820,13 @@ export default function EmployeeCalendarPage() {
 
         {/* Error */}
         {error && (
-          <div className="mb-6 flex items-center gap-3 rounded-2xl border border-red-500/20 bg-red-500/5 px-5 py-4 text-sm text-red-300">
+          <div className="mb-6 flex items-center gap-3 rounded-2xl border border-red-500/20 bg-red-500/5 px-5 py-4 text-sm text-red-700">
             <AlertCircle size={18} />
             {error}
           </div>
         )}
         {syncMessage && (
-          <div className="mb-6 flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 text-sm text-emerald-300">
+          <div className="mb-6 flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 text-sm text-emerald-700">
             <CheckCircle2 size={18} />
             {syncMessage}
           </div>
@@ -913,39 +871,37 @@ export default function EmployeeCalendarPage() {
         {/* Main layout */}
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_370px]">
           {/* Calendar */}
-          <section className="overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.025] shadow-2xl shadow-black/20">
+          <section className="overflow-hidden rounded-3xl border border-[var(--brand-border)] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] shadow-black/20">
             {/* Calendar toolbar */}
-            <div className="border-b border-white/[0.07] p-5 md:p-6">
+            <div className="border-b border-[var(--brand-border)] p-5 md:p-6">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/35">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--brand-dark-gray)]">
                     Schedule
                   </p>
 
-                  <h3 className="mt-1 text-2xl font-bold">
-                    {monthName}
-                  </h3>
+                  <h3 className="mt-1 text-2xl font-bold">{monthName}</h3>
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <div className="relative">
                     <Search
                       size={16}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--brand-black)]"
                     />
 
                     <input
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                       placeholder="Search tasks..."
-                      className="h-10 w-full rounded-xl border border-white/10 bg-black/20 pl-9 pr-4 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-violet-400/40 sm:w-52"
+                      className="h-10 w-full rounded-xl border border-[var(--brand-border)] bg-white pl-9 pr-4 text-sm text-[var(--brand-black)] outline-none transition placeholder:text-[var(--brand-black)] focus:border-[var(--brand-red-secondary)]/40 sm:w-52"
                     />
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
                       onClick={goPreviousMonth}
-                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/60 transition hover:bg-violet-500/10 hover:text-white"
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--brand-border)] bg-white text-[var(--brand-black)] transition hover:bg-[var(--brand-red)]/10 hover:text-[var(--brand-black)]"
                       aria-label="Previous month"
                     >
                       <ChevronLeft size={18} />
@@ -953,7 +909,7 @@ export default function EmployeeCalendarPage() {
 
                     <button
                       onClick={goNextMonth}
-                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-white/60 transition hover:bg-violet-500/10 hover:text-white"
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--brand-border)] bg-white text-[var(--brand-black)] transition hover:bg-[var(--brand-red)]/10 hover:text-[var(--brand-black)]"
                       aria-label="Next month"
                     >
                       <ChevronRight size={18} />
@@ -965,20 +921,18 @@ export default function EmployeeCalendarPage() {
 
             {loading ? (
               <div className="flex min-h-[550px] items-center justify-center">
-                <div className="flex flex-col items-center gap-3 text-white/40">
+                <div className="flex flex-col items-center gap-3 text-[var(--brand-black)]">
                   <Loader2
                     size={28}
-                    className="animate-spin text-violet-400"
+                    className="animate-spin text-[var(--brand-red)]"
                   />
-                  <p className="text-sm">
-                    Loading your calendar...
-                  </p>
+                  <p className="text-sm">Loading your calendar...</p>
                 </div>
               </div>
             ) : (
               <div className="p-3 md:p-5">
                 {/* Weekdays */}
-                <div className="grid grid-cols-7 border-b border-white/[0.07] pb-3">
+                <div className="grid grid-cols-7 border-b border-[var(--brand-border)] pb-3">
                   {[
                     "Monday",
                     "Tuesday",
@@ -990,15 +944,11 @@ export default function EmployeeCalendarPage() {
                   ].map((day) => (
                     <div
                       key={day}
-                      className="px-1 text-center text-[10px] font-semibold uppercase tracking-wider text-white/30 md:text-xs"
+                      className="px-1 text-center text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-black)] md:text-xs"
                     >
-                      <span className="hidden sm:inline">
-                        {day}
-                      </span>
+                      <span className="hidden sm:inline">{day}</span>
 
-                      <span className="sm:hidden">
-                        {day.slice(0, 3)}
-                      </span>
+                      <span className="sm:hidden">{day.slice(0, 3)}</span>
                     </div>
                   ))}
                 </div>
@@ -1019,22 +969,16 @@ export default function EmployeeCalendarPage() {
 
                           if (!cell.currentMonth) {
                             setCurrentMonth(
-                              new Date(
-                                date.getFullYear(),
-                                date.getMonth(),
-                                1
-                              )
+                              new Date(date.getFullYear(), date.getMonth(), 1),
                             );
                           }
                         }}
                         className={[
-                          "group relative min-h-[82px] border-b border-r border-white/[0.05] p-1.5 text-left transition md:min-h-[105px] md:p-2.5",
-                          cell.currentMonth
-                            ? "bg-transparent"
-                            : "bg-white/[0.008]",
+                          "group relative min-h-[82px] border-b border-r border-[var(--brand-border)] p-1.5 text-left transition md:min-h-[105px] md:p-2.5",
+                          cell.currentMonth ? "bg-transparent" : "bg-white",
                           selected
-                            ? "bg-violet-500/[0.09] ring-1 ring-inset ring-violet-400/40"
-                            : "hover:bg-white/[0.035]",
+                            ? "bg-[var(--brand-red)]/[0.09] ring-1 ring-inset ring-[var(--brand-red)]/40"
+                            : "hover:bg-[var(--brand-red-light)]",
                         ].join(" ")}
                       >
                         <div className="flex items-center justify-between">
@@ -1042,42 +986,40 @@ export default function EmployeeCalendarPage() {
                             className={[
                               "flex h-7 w-7 items-center justify-center rounded-lg text-xs font-semibold transition md:text-sm",
                               today
-                                ? "bg-gradient-to-br from-violet-500 to-blue-500 text-white shadow-lg shadow-violet-500/25"
+                                ? "bg-[var(--brand-red)] text-[var(--brand-black)] shadow-[0_2px_8px_rgba(0,0,0,0.04)] shadow-black/25"
                                 : cell.currentMonth
-                                ? "text-white/70 group-hover:text-white"
-                                : "text-white/20",
+                                  ? "text-[var(--brand-black)] group-hover:text-[var(--brand-black)]"
+                                  : "text-[var(--brand-black)]",
                             ].join(" ")}
                           >
                             {date.getDate()}
                           </span>
 
                           {dayTasks.length > 0 && (
-                            <span className="hidden text-[10px] text-white/25 md:block">
+                            <span className="hidden text-[10px] text-[var(--brand-black)] md:block">
                               {dayTasks.length}
                             </span>
                           )}
                         </div>
 
                         <div className="mt-2 space-y-1">
-                          {dayTasks
-                            .slice(0, 2)
-                            .map((task) => (
-                              <div
-                                key={task.id}
-                                className={[
-                                  "truncate rounded-md border px-1.5 py-1 text-[9px] font-medium md:text-[10px]",
-                                  isCompleted(task.status)
-                                    ? "border-emerald-400/15 bg-emerald-400/5 text-emerald-300/70"
-                                    : "border-violet-400/15 bg-violet-500/10 text-violet-200",
-                                ].join(" ")}
-                                title={task.title}
-                              >
-                                {task.title || "Untitled task"}
-                              </div>
-                            ))}
+                          {dayTasks.slice(0, 2).map((task) => (
+                            <div
+                              key={task.id}
+                              className={[
+                                "truncate rounded-md border px-1.5 py-1 text-[9px] font-medium md:text-[10px]",
+                                isCompleted(task.status)
+                                  ? "border-emerald-400/15 bg-emerald-400/5 text-emerald-700/70"
+                                  : "border-[var(--brand-red-secondary)]/15 bg-[var(--brand-red)]/10 text-[var(--brand-red)]",
+                              ].join(" ")}
+                              title={task.title}
+                            >
+                              {task.title || "Untitled task"}
+                            </div>
+                          ))}
 
                           {dayTasks.length > 2 && (
-                            <p className="px-1 text-[9px] text-white/25">
+                            <p className="px-1 text-[9px] text-[var(--brand-medium-gray)]">
                               +{dayTasks.length - 2} more
                             </p>
                           )}
@@ -1093,10 +1035,10 @@ export default function EmployeeCalendarPage() {
           {/* Right panel */}
           <aside className="space-y-6">
             {/* Selected day */}
-            <section className="rounded-3xl border border-white/[0.08] bg-white/[0.025] p-5 md:p-6">
+            <section className="rounded-3xl border border-[var(--brand-border)] bg-white p-5 md:p-6">
               <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-violet-300">
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--brand-red)]">
                     Selected day
                   </p>
 
@@ -1105,23 +1047,23 @@ export default function EmployeeCalendarPage() {
                   </h3>
                 </div>
 
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--brand-red)]/10 text-[var(--brand-red)]">
                   <CalendarDays size={19} />
                 </div>
               </div>
 
               {selectedDayTasks.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-black/10 px-5 py-10 text-center">
+                <div className="rounded-2xl border border-dashed border-[var(--brand-border)] bg-white px-5 py-10 text-center">
                   <CalendarDays
                     size={27}
-                    className="mx-auto mb-3 text-white/20"
+                    className="mx-auto mb-3 text-[var(--brand-black)]"
                   />
 
-                  <p className="text-sm font-medium text-white/55">
+                  <p className="text-sm font-medium text-[var(--brand-dark-gray)]">
                     No tasks scheduled
                   </p>
 
-                  <p className="mt-1 text-xs text-white/25">
+                  <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
                     Enjoy the clear schedule.
                   </p>
                 </div>
@@ -1140,74 +1082,63 @@ export default function EmployeeCalendarPage() {
             </section>
 
             {/* Upcoming */}
-            <section className="rounded-3xl border border-white/[0.08] bg-gradient-to-br from-violet-500/[0.07] to-blue-500/[0.03] p-5 md:p-6">
+            <section className="rounded-3xl border border-[var(--brand-border)] bg-[var(--brand-red)]/[0.05] p-5 md:p-6">
               <div className="mb-5 flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-blue-300">
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--brand-red)]">
                     Coming up
                   </p>
 
-                  <h3 className="mt-1 text-xl font-bold">
-                    Next deadlines
-                  </h3>
+                  <h3 className="mt-1 text-xl font-bold">Next deadlines</h3>
                 </div>
 
-                <Clock3
-                  size={20}
-                  className="text-blue-300"
-                />
+                <Clock3 size={20} className="text-[var(--brand-red)]" />
               </div>
 
               {upcomingTasks.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-black/10 p-5 text-center">
+                <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-5 text-center">
                   <CheckCircle2
                     size={25}
-                    className="mx-auto mb-2 text-emerald-400"
+                    className="mx-auto mb-2 text-emerald-700"
                   />
 
-                  <p className="text-sm text-white/50">
+                  <p className="text-sm text-[var(--brand-medium-gray)]">
                     No upcoming deadlines.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {upcomingTasks.map((task) => {
-                    const deadline =
-                      getTaskDeadline(task);
+                    const deadline = getTaskDeadline(task);
 
                     return (
                       <div
                         key={task.id}
-                        className="rounded-2xl border border-white/[0.07] bg-black/20 p-4 transition hover:border-violet-400/20"
+                        className="rounded-2xl border border-[var(--brand-border)] bg-white p-4 transition hover:border-[var(--brand-red-secondary)]/20"
                       >
                         <div className="flex gap-3">
-                          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/10 text-violet-300">
+                          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--brand-red)]/10 text-[var(--brand-red)]">
                             <FileText size={16} />
                           </div>
 
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-white/85">
-                              {task.title ||
-                                "Untitled task"}
+                            <p className="truncate text-sm font-semibold text-[var(--brand-dark-gray)]">
+                              {task.title || "Untitled task"}
                             </p>
 
                             {deadline && (
-                              <p className="mt-1 text-xs text-white/35">
+                              <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
                                 {formatShortDate(deadline)}
                                 {task.deadlineTime
-                                  ? ` • ${formatTime(
-                                      task.deadlineTime
-                                    )}`
+                                  ? ` • ${formatTime(task.deadlineTime)}`
                                   : ""}
                               </p>
                             )}
 
                             <div className="mt-2 flex flex-wrap items-center gap-2">
-                              <StatusBadge
-                                status={task.status}
-                              />
+                              <StatusBadge status={task.status} />
                               {task.calendarReminder && (
-                                <span className="inline-flex items-center gap-1 rounded-md border border-violet-500/20 bg-violet-500/[0.06] px-2 py-1 text-[10px] text-violet-300">
+                                <span className="inline-flex items-center gap-1 rounded-md border border-[var(--brand-red-secondary)]/20 bg-[var(--brand-red)]/[0.06] px-2 py-1 text-[10px] text-[var(--brand-red)]">
                                   <CalendarClock size={11} /> 60 min reminder
                                 </span>
                               )}
@@ -1222,9 +1153,9 @@ export default function EmployeeCalendarPage() {
             </section>
 
             {/* Calendar info */}
-            <section className="rounded-3xl border border-white/[0.08] bg-white/[0.02] p-5">
+            <section className="rounded-3xl border border-[var(--brand-border)] bg-white p-5">
               <div className="flex gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-300">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-700">
                   <CheckCircle2 size={18} />
                 </div>
 
@@ -1233,9 +1164,8 @@ export default function EmployeeCalendarPage() {
                     Your calendar is private
                   </p>
 
-                  <p className="mt-1 text-xs leading-5 text-white/30">
-                    Only your assigned tasks and shared team tasks
-                    appear here.
+                  <p className="mt-1 text-xs leading-5 text-[var(--brand-medium-gray)]">
+                    Only your assigned tasks and shared team tasks appear here.
                   </p>
                 </div>
               </div>
@@ -1244,11 +1174,9 @@ export default function EmployeeCalendarPage() {
         </div>
 
         {/* Footer */}
-        <footer className="mt-10 border-t border-white/[0.06] py-6">
-          <div className="flex flex-col justify-between gap-3 text-xs text-white/25 sm:flex-row">
-            <p>
-              © 2026 The Ant Media · Internal Management System
-            </p>
+        <footer className="mt-10 border-t border-[var(--brand-border)] py-6">
+          <div className="flex flex-col justify-between gap-3 text-xs text-[var(--brand-black)] sm:flex-row">
+            <p>© 2026 The Ant Media · Internal Management System</p>
 
             <div className="flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -1279,45 +1207,39 @@ function MiniStat({
   danger?: boolean;
 }) {
   return (
-    <div className="group rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5 transition hover:border-violet-400/20 hover:bg-white/[0.035]">
+    <div className="group rounded-2xl border border-[var(--brand-border)] bg-white p-5 transition hover:border-[var(--brand-red-secondary)]/20 hover:bg-[var(--brand-red-light)]">
       <div className="mb-5 flex items-center justify-between">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-red)]/10 text-[var(--brand-red)]">
           {icon}
         </div>
 
-        <div className="h-1.5 w-1.5 rounded-full bg-white/10 transition group-hover:bg-violet-400" />
+        <div className="h-1.5 w-1.5 rounded-full bg-white transition group-hover:bg-[var(--brand-red)]" />
       </div>
 
-      <p className="text-xs font-medium text-white/35">
+      <p className="text-xs font-medium text-[var(--brand-dark-gray)]">
         {label}
       </p>
 
       <p
         className={[
           "mt-1 text-3xl font-bold",
-          danger ? "text-red-300" : "text-white",
+          danger ? "text-red-700" : "text-[var(--brand-black)]",
         ].join(" ")}
       >
         {value}
       </p>
 
-      <p className="mt-1 text-xs text-white/25">
+      <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
         {description}
       </p>
     </div>
   );
 }
 
-function StatusBadge({
-  status,
-}: {
-  status?: string;
-}) {
+function StatusBadge({ status }: { status?: string }) {
   const normalized = (status || "TO DO").toUpperCase();
 
-  const config =
-    STATUS_CONFIG[normalized] ||
-    STATUS_CONFIG["TO DO"];
+  const config = STATUS_CONFIG[normalized] || STATUS_CONFIG["TO DO"];
 
   return (
     <span
@@ -1331,16 +1253,10 @@ function StatusBadge({
   );
 }
 
-function PriorityBadge({
-  priority,
-}: {
-  priority?: string;
-}) {
+function PriorityBadge({ priority }: { priority?: string }) {
   const normalized = (priority || "MEDIUM").toUpperCase();
 
-  const config =
-    PRIORITY_CONFIG[normalized] ||
-    PRIORITY_CONFIG.MEDIUM;
+  const config = PRIORITY_CONFIG[normalized] || PRIORITY_CONFIG.MEDIUM;
 
   return (
     <span
@@ -1367,59 +1283,51 @@ function TaskItem({
   const completed = isCompleted(task.status);
 
   return (
-    <div className="group rounded-2xl border border-white/[0.07] bg-black/20 p-4 transition hover:border-violet-400/25 hover:bg-white/[0.035]">
+    <div className="group rounded-2xl border border-[var(--brand-border)] bg-white p-4 transition hover:border-[var(--brand-red-secondary)]/25 hover:bg-[var(--brand-red-light)]">
       <div className="flex gap-3">
         <div
           className={[
             "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
             completed
-              ? "bg-emerald-500/10 text-emerald-300"
-              : "bg-violet-500/10 text-violet-300",
+              ? "bg-emerald-500/10 text-emerald-700"
+              : "bg-[var(--brand-red)]/10 text-[var(--brand-red)]",
           ].join(" ")}
         >
-          {completed ? (
-            <CheckCircle2 size={18} />
-          ) : (
-            <Circle size={18} />
-          )}
+          {completed ? <CheckCircle2 size={18} /> : <Circle size={18} />}
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <h4 className="text-sm font-semibold text-white/90">
+            <h4 className="text-sm font-semibold text-[var(--brand-black)]">
               {task.title || "Untitled task"}
             </h4>
 
-            <PriorityBadge
-              priority={task.priority}
-            />
+            <PriorityBadge priority={task.priority} />
           </div>
 
           {task.description && (
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/30">
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--brand-medium-gray)]">
               {task.description}
             </p>
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <StatusBadge
-              status={task.status}
-            />
+            <StatusBadge status={task.status} />
 
             {task.taskType && (
-              <span className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] text-white/35">
+              <span className="rounded-md border border-[var(--brand-border)] bg-white px-2 py-1 text-[10px] text-[var(--brand-black)]">
                 {task.taskType}
               </span>
             )}
 
             {task.assignmentType === "team" && (
-              <span className="rounded-md border border-blue-500/20 bg-blue-500/[0.06] px-2 py-1 text-[10px] text-blue-300">
+              <span className="rounded-md border border-[var(--brand-red-secondary)]/20 bg-[var(--brand-red)]/[0.06] px-2 py-1 text-[10px] text-[var(--brand-red)]">
                 Team task
               </span>
             )}
 
             {task.calendarReminder && (
-              <span className="flex items-center gap-1 rounded-md border border-violet-500/20 bg-violet-500/[0.06] px-2 py-1 text-[10px] text-violet-300">
+              <span className="flex items-center gap-1 rounded-md border border-[var(--brand-red-secondary)]/20 bg-[var(--brand-red)]/[0.06] px-2 py-1 text-[10px] text-[var(--brand-red)]">
                 <CalendarClock size={11} /> Reminder set
               </span>
             )}
@@ -1427,7 +1335,7 @@ function TaskItem({
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {deadline && (
-              <span className="flex items-center gap-1.5 text-[11px] text-white/30">
+              <span className="flex items-center gap-1.5 text-[11px] text-[var(--brand-black)]">
                 <Clock3 size={12} />
                 {task.deadlineTime
                   ? formatTime(task.deadlineTime)
@@ -1436,7 +1344,7 @@ function TaskItem({
             )}
 
             {task.client && (
-              <span className="flex items-center gap-1.5 text-[11px] text-white/30">
+              <span className="flex items-center gap-1.5 text-[11px] text-[var(--brand-black)]">
                 <FileText size={12} />
                 {task.client}
               </span>
@@ -1450,7 +1358,7 @@ function TaskItem({
                   onSync();
                 }}
                 disabled={syncing}
-                className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-blue-400/20 bg-blue-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-blue-300 transition hover:border-blue-400/35 hover:bg-blue-500/15 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-50"
+                className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand-red-secondary)]/20 bg-[var(--brand-red)]/10 px-2.5 py-1.5 text-[10px] font-semibold text-[var(--brand-red)] transition hover:border-[var(--brand-red-secondary)]/35 hover:bg-[var(--brand-red)]/15 hover:text-[var(--brand-red)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {syncing ? (
                   <Loader2 size={11} className="animate-spin" />
@@ -1460,8 +1368,8 @@ function TaskItem({
                 {syncing
                   ? "Syncing..."
                   : task.employeeGoogleCalendarEventId
-                  ? "Update Calendar"
-                  : "Sync Calendar"}
+                    ? "Update Calendar"
+                    : "Sync Calendar"}
               </button>
             )}
           </div>

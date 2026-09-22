@@ -22,7 +22,12 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { onAuthStateChanged, createUserWithEmailAndPassword, getAuth, signOut } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  getAuth,
+  signOut,
+} from "firebase/auth";
 import { getApps, initializeApp } from "firebase/app";
 import {
   collection,
@@ -90,7 +95,9 @@ export default function FounderTeamPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [createType, setCreateType] = useState<"employee" | "founder">("employee");
+  const [createType, setCreateType] = useState<"employee" | "founder">(
+    "employee",
+  );
   const [showRole, setShowRole] = useState<Member | null>(null);
   const [showFounderTransfer, setShowFounderTransfer] = useState(false);
   const [selectedFounder, setSelectedFounder] = useState<Member | null>(null);
@@ -115,7 +122,11 @@ export default function FounderTeamPage() {
 
       try {
         const snap = await getDoc(doc(db, "users", user.uid));
-        if (!snap.exists() || snap.data().role !== "founder" || snap.data().active !== true) {
+        if (
+          !snap.exists() ||
+          snap.data().role !== "founder" ||
+          snap.data().active !== true
+        ) {
           setAuthorized(false);
           setLoading(false);
           setCheckingAuth(false);
@@ -149,7 +160,9 @@ export default function FounderTeamPage() {
         data.sort((a, b) => {
           if (a.role === "founder") return -1;
           if (b.role === "founder") return 1;
-          return String(a.name || a.email || "").localeCompare(String(b.name || b.email || ""));
+          return String(a.name || a.email || "").localeCompare(
+            String(b.name || b.email || ""),
+          );
         });
         setMembers(data);
         setLoading(false);
@@ -158,7 +171,7 @@ export default function FounderTeamPage() {
         console.error("Team listener error:", err);
         setError("Unable to load the team. Check Firestore permissions.");
         setLoading(false);
-      }
+      },
     );
 
     return () => unsubscribe();
@@ -179,25 +192,33 @@ export default function FounderTeamPage() {
       },
       (err) => {
         console.error("Team task listener error:", err);
-      }
+      },
     );
 
     return () => unsubscribe();
   }, [authorized]);
 
-  const founders = useMemo(() => members.filter((m) => m.role === "founder" && m.active !== false), [members]);
-  const employees = useMemo(() => members.filter((m) => m.role === "employee" && m.active !== false), [members]);
-  const interns = useMemo(() => members.filter((m) => m.role === "intern" && m.active !== false), [members]);
+  const founders = useMemo(
+    () => members.filter((m) => m.role === "founder" && m.active !== false),
+    [members],
+  );
+  const employees = useMemo(
+    () => members.filter((m) => m.role === "employee" && m.active !== false),
+    [members],
+  );
+  const interns = useMemo(
+    () => members.filter((m) => m.role === "intern" && m.active !== false),
+    [members],
+  );
 
   const activeTeam = useMemo(
     () =>
       members.filter(
         (member) =>
           member.active !== false &&
-          (member.role === "employee" ||
-            member.role === "intern")
+          (member.role === "employee" || member.role === "intern"),
       ),
-    [members]
+    [members],
   );
 
   const activeTaskStatuses = new Set([
@@ -222,9 +243,10 @@ export default function FounderTeamPage() {
       return assigned || teamAssigned;
     });
 
-    const active = memberTasks.filter((task) =>
-      activeTaskStatuses.has(taskStatusKey(task.status)) ||
-      activeTaskStatuses.has(String(task.status || "").toLowerCase())
+    const active = memberTasks.filter(
+      (task) =>
+        activeTaskStatuses.has(taskStatusKey(task.status)) ||
+        activeTaskStatuses.has(String(task.status || "").toLowerCase()),
     ).length;
 
     const overdue = memberTasks.filter((task) => {
@@ -234,7 +256,7 @@ export default function FounderTeamPage() {
       }
 
       const due = new Date(
-        `${task.deadline}T${task.deadlineTime || "23:59"}:00`
+        `${task.deadline}T${task.deadlineTime || "23:59"}:00`,
       );
       return !Number.isNaN(due.getTime()) && due.getTime() < Date.now();
     }).length;
@@ -248,13 +270,10 @@ export default function FounderTeamPage() {
         member,
         ...getMemberWorkload(member),
       })),
-    [activeTeam, tasks]
+    [activeTeam, tasks],
   );
 
-  const maxActive = Math.max(
-    1,
-    ...workloadRows.map((row) => row.active)
-  );
+  const maxActive = Math.max(1, ...workloadRows.map((row) => row.active));
 
   const workloadRecommendations = useMemo(() => {
     const rows = workloadRows
@@ -352,7 +371,9 @@ export default function FounderTeamPage() {
     const password = form.password;
 
     if (!name || !email || password.length < 6) {
-      setError("Name, email and a password of at least 6 characters are required.");
+      setError(
+        "Name, email and a password of at least 6 characters are required.",
+      );
       return;
     }
 
@@ -360,9 +381,16 @@ export default function FounderTeamPage() {
       setActionLoading("create");
 
       const secondaryName = `account-creation-${Date.now()}`;
-      const secondaryApp = initializeApp(secondaryFirebaseConfig, secondaryName);
+      const secondaryApp = initializeApp(
+        secondaryFirebaseConfig,
+        secondaryName,
+      );
       const secondaryAuth = getAuth(secondaryApp);
-      const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+      const credential = await createUserWithEmailAndPassword(
+        secondaryAuth,
+        email,
+        password,
+      );
 
       await setDoc(doc(db, "users", credential.user.uid), {
         name,
@@ -375,16 +403,30 @@ export default function FounderTeamPage() {
       });
 
       await signOut(secondaryAuth);
-      setMessage(`${createType === "founder" ? "Founder" : "Employee/intern"} account created successfully.`);
-      setForm({ name: "", email: "", password: "", role: createType === "founder" ? "founder" : "employee", department: createType === "founder" ? "management" : "development" });
+      setMessage(
+        `${createType === "founder" ? "Founder" : "Employee/intern"} account created successfully.`,
+      );
+      setForm({
+        name: "",
+        email: "",
+        password: "",
+        role: createType === "founder" ? "founder" : "employee",
+        department: createType === "founder" ? "management" : "development",
+      });
       setTimeout(() => setShowCreate(false), 900);
     } catch (err: any) {
       console.error("Create account error:", err);
       const code = String(err?.code || "");
-      if (code.includes("auth/email-already-in-use")) setError("That email already has a Firebase Auth account.");
-      else if (code.includes("auth/invalid-email")) setError("Please enter a valid email address.");
-      else if (code.includes("auth/weak-password")) setError("Use a stronger password.");
-      else setError("Unable to create the account. Check Firebase Auth and Firestore permissions.");
+      if (code.includes("auth/email-already-in-use"))
+        setError("That email already has a Firebase Auth account.");
+      else if (code.includes("auth/invalid-email"))
+        setError("Please enter a valid email address.");
+      else if (code.includes("auth/weak-password"))
+        setError("Use a stronger password.");
+      else
+        setError(
+          "Unable to create the account. Check Firebase Auth and Firestore permissions.",
+        );
     } finally {
       setActionLoading(null);
     }
@@ -403,7 +445,9 @@ export default function FounderTeamPage() {
         updatedAt: serverTimestamp(),
       });
       setShowRole(null);
-      setMessage(`${member.name || member.email || "Member"} is now ${newRole}.`);
+      setMessage(
+        `${member.name || member.email || "Member"} is now ${newRole}.`,
+      );
     } catch (err) {
       console.error("Change role error:", err);
       setError("Unable to change the role.");
@@ -420,7 +464,9 @@ export default function FounderTeamPage() {
         updatedAt: serverTimestamp(),
       });
       setShowRole(null);
-      setMessage(`${member.name || member.email || "Member"}'s department was updated.`);
+      setMessage(
+        `${member.name || member.email || "Member"}'s department was updated.`,
+      );
     } catch (err) {
       console.error("Change department error:", err);
       setError("Unable to change the department.");
@@ -433,7 +479,7 @@ export default function FounderTeamPage() {
     if (!currentUser || target.role === "founder") return;
 
     const confirmed = window.confirm(
-      `Transfer Founder access to ${target.name || target.email}? You will become an employee after the transfer.`
+      `Transfer Founder access to ${target.name || target.email}? You will become an employee after the transfer.`,
     );
     if (!confirmed) return;
 
@@ -454,7 +500,10 @@ export default function FounderTeamPage() {
 
         transaction.update(currentRef, {
           role: "employee",
-          department: currentSnap.data().department === "management" ? "development" : currentSnap.data().department || "development",
+          department:
+            currentSnap.data().department === "management"
+              ? "development"
+              : currentSnap.data().department || "development",
           updatedAt: serverTimestamp(),
         });
         transaction.update(targetRef, {
@@ -465,7 +514,9 @@ export default function FounderTeamPage() {
         });
       });
 
-      alert("Founder changed successfully. Your current account is now an employee and will be redirected to the employee workspace.");
+      alert(
+        "Founder changed successfully. Your current account is now an employee and will be redirected to the employee workspace.",
+      );
       await signOut(auth);
       window.location.href = "/";
     } catch (err) {
@@ -477,7 +528,9 @@ export default function FounderTeamPage() {
 
   async function deleteMember(member: Member) {
     if (member.id === currentUser?.uid) {
-      alert("You cannot delete the currently signed-in Founder from this screen.");
+      alert(
+        "You cannot delete the currently signed-in Founder from this screen.",
+      );
       return;
     }
 
@@ -487,17 +540,21 @@ export default function FounderTeamPage() {
     }
 
     const confirmed = window.confirm(
-      `Delete ${member.name || member.email || "this member"}? Their Firestore workspace profile will be removed and they will lose workspace access.`
+      `Delete ${member.name || member.email || "this member"}? Their Firestore workspace profile will be removed and they will lose workspace access.`,
     );
     if (!confirmed) return;
 
     try {
       setActionLoading(member.id);
       await deleteDoc(doc(db, "users", member.id));
-      setMessage(`${member.name || member.email || "Member"} was removed from the workspace.`);
+      setMessage(
+        `${member.name || member.email || "Member"} was removed from the workspace.`,
+      );
     } catch (err) {
       console.error("Delete member error:", err);
-      setError("Unable to delete the workspace profile. Check Firestore permissions.");
+      setError(
+        "Unable to delete the workspace profile. Check Firestore permissions.",
+      );
     } finally {
       setActionLoading(null);
     }
@@ -510,44 +567,72 @@ export default function FounderTeamPage() {
 
   if (checkingAuth) {
     return (
-      <main className="min-h-screen bg-[#050507] text-white flex items-center justify-center">
-        <div className="flex items-center gap-3 text-white/50"><Loader2 size={20} className="animate-spin" /> Checking founder workspace...</div>
+      <main className="min-h-screen bg-white text-[var(--brand-black)] flex items-center justify-center">
+        <div className="flex items-center gap-3 text-[var(--brand-black)]">
+          <Loader2 size={20} className="animate-spin" /> Checking founder
+          workspace...
+        </div>
       </main>
     );
   }
 
   if (!authorized) {
     return (
-      <main className="min-h-screen bg-[#050507] text-white flex items-center justify-center px-6">
-        <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-center">
-          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/10 text-red-300"><AlertCircle size={26} /></div>
+      <main className="min-h-screen bg-white text-[var(--brand-black)] flex items-center justify-center px-6">
+        <div className="w-full max-w-md rounded-3xl border border-[var(--brand-border)] bg-white p-8 text-center">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/10 text-red-700">
+            <AlertCircle size={26} />
+          </div>
           <h1 className="text-2xl font-semibold">Founder access required</h1>
-          <p className="mt-3 text-sm leading-6 text-white/40">Only an active Founder can manage the Ant Media team.</p>
-          <button onClick={() => (window.location.href = "/")} className="mt-7 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black">Back to login</button>
+          <p className="mt-3 text-sm leading-6 text-[var(--brand-medium-gray)]">
+            Only an active Founder can manage the Ant Media team.
+          </p>
+          <button
+            onClick={() => (window.location.href = "/")}
+            className="mt-7 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black"
+          >
+            Back to login
+          </button>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#050507] text-white overflow-x-hidden">
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute left-[-10%] top-[-10%] h-[520px] w-[520px] rounded-full bg-violet-600/10 blur-[150px]" />
-        <div className="absolute right-[-10%] top-[20%] h-[520px] w-[520px] rounded-full bg-blue-600/10 blur-[150px]" />
-      </div>
+    <main className="min-h-screen bg-white text-[var(--brand-black)] overflow-x-hidden">
+      <div className="pointer-events-none fixed inset-0 overflow-hidden"></div>
 
-      <header className="sticky top-0 z-30 border-b border-white/[0.07] bg-[#050507]/85 backdrop-blur-2xl">
+      <header className="sticky top-0 z-30 border-b border-[var(--brand-border)] bg-white ">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between px-6 py-5 lg:px-10">
           <div className="flex items-center gap-4">
-            <button onClick={() => (window.location.href = "/founder")} className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.07]"><ArrowLeft size={20} /></button>
+            <button
+              onClick={() => (window.location.href = "/founder")}
+              className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--brand-border)] bg-white hover:bg-[var(--brand-red-light)]"
+            >
+              <ArrowLeft size={20} />
+            </button>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-violet-300/80">Founder / Management</p>
-              <h1 className="mt-1 text-xl font-semibold sm:text-2xl">Team Management</h1>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-[var(--brand-red)]">
+                Founder / Management
+              </p>
+              <h1 className="mt-1 text-xl font-semibold sm:text-2xl">
+                Team Management
+              </h1>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => window.location.reload()} className="hidden md:flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/60 hover:bg-white/[0.07]"><RefreshCw size={16} /> Refresh</button>
-            <button onClick={handleLogout} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/60 hover:bg-white/[0.07]">Logout</button>
+            <button
+              onClick={() => window.location.reload()}
+              className="hidden md:flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3 text-sm text-[var(--brand-black)] hover:bg-[var(--brand-red-light)]"
+            >
+              <RefreshCw size={16} /> Refresh
+            </button>
+            <button
+              onClick={handleLogout}
+              className="rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3 text-sm text-[var(--brand-black)] hover:bg-[var(--brand-red-light)]"
+            >
+              Logout
+            </button>
           </div>
         </div>
       </header>
@@ -555,59 +640,175 @@ export default function FounderTeamPage() {
       <div className="relative mx-auto max-w-[1600px] px-6 py-10 lg:px-10">
         <section className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
           <div>
-            <div className="mb-4 flex items-center gap-3 text-violet-300"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10"><Users size={19} /></div><span className="text-sm">People, roles & access control</span></div>
-            <h2 className="max-w-4xl text-5xl font-semibold tracking-[-0.05em] sm:text-6xl">Build the team that<br /><span className="bg-gradient-to-r from-white via-violet-200 to-blue-300 bg-clip-text text-transparent">keeps the work moving.</span></h2>
-            <p className="mt-5 max-w-2xl text-sm leading-7 text-white/40">Create team accounts, transfer Founder ownership, change employee roles and remove workspace access from one secure management panel.</p>
+            <div className="mb-4 flex items-center gap-3 text-[var(--brand-red)]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-red)]/10">
+                <Users size={19} />
+              </div>
+              <span className="text-sm">People, roles & access control</span>
+            </div>
+            <h2 className="max-w-4xl text-5xl font-semibold tracking-[-0.05em] sm:text-6xl">
+              Build the team that
+              <br />
+              <span className="text-[var(--brand-red)]">
+                keeps the work moving.
+              </span>
+            </h2>
+            <p className="mt-5 max-w-2xl text-sm leading-7 text-[var(--brand-medium-gray)]">
+              Create team accounts, transfer Founder ownership, change employee
+              roles and remove workspace access from one secure management
+              panel.
+            </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button onClick={() => openCreate("employee")} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-blue-500 px-5 py-3.5 text-sm font-semibold shadow-lg shadow-violet-500/20"><UserPlus size={17} /> Create Employee</button>
-            <button onClick={() => openCreate("founder")} className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-5 py-3.5 text-sm font-semibold text-amber-200"><Crown size={17} /> Create New Founder</button>
+            <button
+              onClick={() => openCreate("employee")}
+              className="flex items-center gap-2 rounded-xl bg-[var(--brand-red)] px-5 py-3.5 text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,0.04)] shadow-black/20"
+            >
+              <UserPlus size={17} /> Create Employee
+            </button>
+            <button
+              onClick={() => openCreate("founder")}
+              className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-5 py-3.5 text-sm font-semibold text-amber-700"
+            >
+              <Crown size={17} /> Create New Founder
+            </button>
           </div>
         </section>
 
-        {message && <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] px-5 py-4 text-sm text-emerald-300">{message}</div>}
-        {error && <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/[0.06] px-5 py-4 text-sm text-red-300">{error}</div>}
+        {message && (
+          <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] px-5 py-4 text-sm text-emerald-700">
+            {message}
+          </div>
+        )}
+        {error && (
+          <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/[0.06] px-5 py-4 text-sm text-red-700">
+            {error}
+          </div>
+        )}
 
         <section className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Stat label="Founders" value={founders.length} icon={<Crown size={19} />} />
-          <Stat label="Employees" value={employees.length} icon={<ShieldCheck size={19} />} />
-          <Stat label="Interns" value={interns.length} icon={<Users size={19} />} />
-          <Stat label="Total active" value={founders.length + employees.length + interns.length} icon={<UserPlus size={19} />} />
+          <Stat
+            label="Founders"
+            value={founders.length}
+            icon={<Crown size={19} />}
+          />
+          <Stat
+            label="Employees"
+            value={employees.length}
+            icon={<ShieldCheck size={19} />}
+          />
+          <Stat
+            label="Interns"
+            value={interns.length}
+            icon={<Users size={19} />}
+          />
+          <Stat
+            label="Total active"
+            value={founders.length + employees.length + interns.length}
+            icon={<UserPlus size={19} />}
+          />
         </section>
 
-        <section className="mt-8 overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.025] backdrop-blur-xl">
-          <div className="flex flex-col gap-4 border-b border-white/[0.07] px-6 py-5 md:flex-row md:items-center md:justify-between">
-            <div><h3 className="text-lg font-semibold">Workspace members</h3><p className="mt-1 text-xs text-white/30">Founder controls are intentionally separated from employee access.</p></div>
-            <button onClick={() => { setShowFounderTransfer(true); setSelectedFounder(null); }} className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-4 py-2.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/[0.09]"><Crown size={15} /> Change Founder</button>
+        <section className="mt-8 overflow-hidden rounded-3xl border border-[var(--brand-border)] bg-white ">
+          <div className="flex flex-col gap-4 border-b border-[var(--brand-border)] px-6 py-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Workspace members</h3>
+              <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
+                Founder controls are intentionally separated from employee
+                access.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setShowFounderTransfer(true);
+                setSelectedFounder(null);
+              }}
+              className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-4 py-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-500/[0.09]"
+            >
+              <Crown size={15} /> Change Founder
+            </button>
           </div>
 
-          {loading ? <div className="flex min-h-[300px] items-center justify-center text-white/40"><Loader2 className="animate-spin" size={20} /></div> : (
-            <div className="divide-y divide-white/[0.06]">
+          {loading ? (
+            <div className="flex min-h-[300px] items-center justify-center text-[var(--brand-black)]">
+              <Loader2 className="animate-spin" size={20} />
+            </div>
+          ) : (
+            <div className="divide-y divide-[var(--brand-border)]">
               {members.map((member) => (
-                <motion.div key={member.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center">
+                <motion.div
+                  key={member.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center"
+                >
                   <div className="flex min-w-0 flex-1 items-center gap-4">
-                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${member.role === "founder" ? "bg-amber-500/10 text-amber-200" : "bg-violet-500/10 text-violet-300"}`}>{getInitials(member.name || member.email || "U")}</div>
-                    <div className="min-w-0"><p className="truncate font-semibold">{member.name || "Unnamed member"}</p><p className="mt-1 flex items-center gap-1 text-xs text-white/30"><Mail size={12} /> {member.email || "No email"}</p></div>
+                    <div
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${member.role === "founder" ? "bg-amber-500/10 text-amber-700" : "bg-[var(--brand-red)]/10 text-[var(--brand-red)]"}`}
+                    >
+                      {getInitials(member.name || member.email || "U")}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">
+                        {member.name || "Unnamed member"}
+                      </p>
+                      <p className="mt-1 flex items-center gap-1 text-xs text-[var(--brand-medium-gray)]">
+                        <Mail size={12} /> {member.email || "No email"}
+                      </p>
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 lg:w-[620px] lg:justify-end">
-                    <span className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider ${
-                      member.active !== false
-                        ? "border-emerald-500/15 bg-emerald-500/[0.05] text-emerald-300"
-                        : "border-red-500/15 bg-red-500/[0.05] text-red-300"
-                    }`}>
+                    <span
+                      className={`rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider ${
+                        member.active !== false
+                          ? "border-emerald-500/15 bg-emerald-500/[0.05] text-emerald-700"
+                          : "border-red-500/15 bg-red-500/[0.05] text-red-700"
+                      }`}
+                    >
                       {member.active !== false ? "Active" : "Inactive"}
                     </span>
-                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/50">{member.role}</span>
-                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/40">{member.department || "unassigned"}</span>
+                    <span className="rounded-full border border-[var(--brand-border)] bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-black)]">
+                      {member.role}
+                    </span>
+                    <span className="rounded-full border border-[var(--brand-border)] bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-black)]">
+                      {member.department || "unassigned"}
+                    </span>
                     {member.role !== "founder" && (
-                      <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.05] px-3 py-2 text-xs text-violet-200">
-                        <span className="font-semibold">{getMemberWorkload(member).active}</span>
-                        <span className="ml-1 text-white/35">active</span>
+                      <div className="rounded-xl border border-[var(--brand-red-secondary)]/15 bg-[var(--brand-red)]/[0.05] px-3 py-2 text-xs text-[var(--brand-red)]">
+                        <span className="font-semibold">
+                          {getMemberWorkload(member).active}
+                        </span>
+                        <span className="ml-1 text-[var(--brand-black)]">
+                          active
+                        </span>
                       </div>
                     )}
-                    {member.role !== "founder" && <button onClick={() => setShowRole(member)} className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5 text-white/40 hover:text-white"><Pencil size={15} /></button>}
-                    {member.role === "founder" ? <button onClick={() => { setSelectedFounder(member); setShowFounderTransfer(true); }} className="rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-3 py-2 text-xs font-semibold text-amber-200">Manage Founder</button> : null}
-                    <button onClick={() => deleteMember(member)} disabled={actionLoading === member.id} className="rounded-xl border border-red-500/15 bg-red-500/[0.04] p-2.5 text-red-300/70 hover:text-red-300 disabled:opacity-50"><Trash2 size={15} /></button>
+                    {member.role !== "founder" && (
+                      <button
+                        onClick={() => setShowRole(member)}
+                        className="rounded-xl border border-[var(--brand-border)] bg-white p-2.5 text-[var(--brand-black)] hover:text-[var(--brand-black)]"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                    )}
+                    {member.role === "founder" ? (
+                      <button
+                        onClick={() => {
+                          setSelectedFounder(member);
+                          setShowFounderTransfer(true);
+                        }}
+                        className="rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-3 py-2 text-xs font-semibold text-amber-700"
+                      >
+                        Manage Founder
+                      </button>
+                    ) : null}
+                    <button
+                      onClick={() => deleteMember(member)}
+                      disabled={actionLoading === member.id}
+                      className="rounded-xl border border-red-500/15 bg-red-500/[0.04] p-2.5 text-red-700/70 hover:text-red-700 disabled:opacity-50"
+                    >
+                      <Trash2 size={15} />
+                    </button>
                   </div>
                 </motion.div>
               ))}
@@ -616,42 +817,60 @@ export default function FounderTeamPage() {
         </section>
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
-          <div className="rounded-3xl border border-white/[0.08] bg-white/[0.025] p-6">
+          <div className="rounded-3xl border border-[var(--brand-border)] bg-white p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-violet-300/70">Live workload</p>
-                <h3 className="mt-2 text-xl font-semibold">Workload visibility</h3>
-                <p className="mt-1 text-sm text-white/35">Active and overdue tasks by working employee or intern.</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-[var(--brand-red)]">
+                  Live workload
+                </p>
+                <h3 className="mt-2 text-xl font-semibold">
+                  Workload visibility
+                </h3>
+                <p className="mt-1 text-sm text-[var(--brand-medium-gray)]">
+                  Active and overdue tasks by working employee or intern.
+                </p>
               </div>
-              <Activity size={20} className="text-violet-300" />
+              <Activity size={20} className="text-[var(--brand-red)]" />
             </div>
 
             <div className="mt-6 space-y-4">
               {workloadRows.length === 0 ? (
-                <p className="rounded-2xl border border-white/[0.06] p-5 text-sm text-white/35">
+                <p className="rounded-2xl border border-[var(--brand-border)] p-5 text-sm text-[var(--brand-medium-gray)]">
                   No active employee or intern accounts found.
                 </p>
               ) : (
                 workloadRows.map((row) => (
-                  <div key={row.member.id} className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+                  <div
+                    key={row.member.id}
+                    className="rounded-2xl border border-[var(--brand-border)] bg-white p-4"
+                  >
                     <div className="flex items-center justify-between gap-4">
                       <div className="min-w-0">
-                        <p className="truncate font-semibold">{row.member.name || "Unnamed member"}</p>
-                        <p className="mt-1 text-xs text-white/30">
-                          {row.member.role} · {row.member.department || "unassigned"}
+                        <p className="truncate font-semibold">
+                          {row.member.name || "Unnamed member"}
+                        </p>
+                        <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
+                          {row.member.role} ·{" "}
+                          {row.member.department || "unassigned"}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-semibold">{row.active} active</p>
-                        <p className={`mt-1 text-[11px] ${row.overdue ? "text-red-300" : "text-white/30"}`}>
+                        <p className="text-sm font-semibold">
+                          {row.active} active
+                        </p>
+                        <p
+                          className={`mt-1 text-[11px] ${row.overdue ? "text-red-700" : "text-[var(--brand-black)]"}`}
+                        >
                           {row.overdue} overdue
                         </p>
                       </div>
                     </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500"
-                        style={{ width: `${Math.min(100, (row.active / maxActive) * 100)}%` }}
+                        className="h-full rounded-full bg-[var(--brand-red)]"
+                        style={{
+                          width: `${Math.min(100, (row.active / maxActive) * 100)}%`,
+                        }}
                       />
                     </div>
                   </div>
@@ -660,14 +879,18 @@ export default function FounderTeamPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/[0.08] bg-white/[0.025] p-6">
+          <div className="rounded-3xl border border-[var(--brand-border)] bg-white p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-blue-300/70">Founder intelligence</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-[var(--brand-red)]">
+                  Founder intelligence
+                </p>
                 <h3 className="mt-2 text-xl font-semibold">Recommendations</h3>
-                <p className="mt-1 text-sm text-white/35">Simple signals to help review the next assignment.</p>
+                <p className="mt-1 text-sm text-[var(--brand-medium-gray)]">
+                  Simple signals to help review the next assignment.
+                </p>
               </div>
-              <ArrowUpRight size={20} className="text-blue-300" />
+              <ArrowUpRight size={20} className="text-[var(--brand-red)]" />
             </div>
 
             <div className="mt-6 space-y-3">
@@ -678,27 +901,32 @@ export default function FounderTeamPage() {
                     item.tone === "danger"
                       ? "border-red-500/15 bg-red-500/[0.05]"
                       : item.tone === "warning"
-                      ? "border-amber-500/15 bg-amber-500/[0.05]"
-                      : item.tone === "info"
-                      ? "border-blue-500/15 bg-blue-500/[0.05]"
-                      : "border-emerald-500/15 bg-emerald-500/[0.05]"
+                        ? "border-amber-500/15 bg-amber-500/[0.05]"
+                        : item.tone === "info"
+                          ? "border-[var(--brand-red-secondary)]/15 bg-[var(--brand-red)]/[0.05]"
+                          : "border-emerald-500/15 bg-emerald-500/[0.05]"
                   }`}
                 >
                   <div className="flex gap-3">
                     <div className="mt-0.5 shrink-0">
                       {item.tone === "danger" ? (
-                        <AlertTriangle size={17} className="text-red-300" />
+                        <AlertTriangle size={17} className="text-red-700" />
                       ) : item.tone === "warning" ? (
-                        <AlertTriangle size={17} className="text-amber-300" />
+                        <AlertTriangle size={17} className="text-amber-700" />
                       ) : item.tone === "info" ? (
-                        <ArrowUpRight size={17} className="text-blue-300" />
+                        <ArrowUpRight
+                          size={17}
+                          className="text-[var(--brand-red)]"
+                        />
                       ) : (
-                        <UserCheck size={17} className="text-emerald-300" />
+                        <UserCheck size={17} className="text-emerald-700" />
                       )}
                     </div>
                     <div>
                       <p className="text-sm font-semibold">{item.title}</p>
-                      <p className="mt-1 text-xs leading-5 text-white/35">{item.detail}</p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--brand-medium-gray)]">
+                        {item.detail}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -708,35 +936,280 @@ export default function FounderTeamPage() {
         </section>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
-          <Info title="Founder" text="Full management access, including users, tasks, attendance, clients and calendar operations." />
-          <Info title="Employee" text="Work-focused access. Employees can receive, work on and submit assigned tasks." />
-          <Info title="Intern" text="Restricted work access for development interns without management controls." />
+          <Info
+            title="Founder"
+            text="Full management access, including users, tasks, attendance, clients and calendar operations."
+          />
+          <Info
+            title="Employee"
+            text="Work-focused access. Employees can receive, work on and submit assigned tasks."
+          />
+          <Info
+            title="Intern"
+            text="Restricted work access for development interns without management controls."
+          />
         </div>
       </div>
 
       {showCreate && (
-        <Modal title={createType === "founder" ? "Create New Founder" : "Create Employee / Intern"} onClose={() => setShowCreate(false)}>
+        <Modal
+          title={
+            createType === "founder"
+              ? "Create New Founder"
+              : "Create Employee / Intern"
+          }
+          onClose={() => setShowCreate(false)}
+        >
           <div className="space-y-4">
-            <Field label="Full name"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Arun Kumar" /></Field>
-            <Field label="Email"><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@antmedia.in" /></Field>
-            <Field label="Temporary password"><input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Minimum 6 characters" /></Field>
-            {createType === "employee" && <div className="grid gap-4 sm:grid-cols-2"><Field label="Role"><select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}><option value="employee">Employee</option><option value="intern">Intern</option></select></Field><Field label="Department"><select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })}>{DEPARTMENTS.filter((d) => d !== "management").map((d) => <option key={d} value={d}>{d}</option>)}</select></Field></div>}
-            {createType === "founder" && <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[0.05] p-4 text-xs leading-5 text-amber-200/70">This creates a separate Firebase Auth account and a Founder profile in Firestore. Keep Founder accounts limited to trusted management users.</div>}
-            {error && <div className="rounded-xl border border-red-500/20 bg-red-500/[0.05] p-3 text-xs text-red-300">{error}</div>}
-            {message && <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] p-3 text-xs text-emerald-300">{message}</div>}
-            <div className="flex gap-3 pt-2"><button onClick={() => setShowCreate(false)} className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/60">Cancel</button><button onClick={createAccount} disabled={actionLoading === "create"} className="flex-1 rounded-xl bg-gradient-to-r from-violet-600 to-blue-500 px-4 py-3 text-sm font-semibold disabled:opacity-50">{actionLoading === "create" ? <span className="inline-flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Creating...</span> : <span className="inline-flex items-center gap-2"><Check size={16} /> Create account</span>}</button></div>
+            <Field label="Full name">
+              <input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. Arun Kumar"
+              />
+            </Field>
+            <Field label="Email">
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="name@antmedia.in"
+              />
+            </Field>
+            <Field label="Temporary password">
+              <input
+                type="password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder="Minimum 6 characters"
+              />
+            </Field>
+            {createType === "employee" && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Role">
+                  <select
+                    value={form.role}
+                    onChange={(e) => setForm({ ...form, role: e.target.value })}
+                  >
+                    <option value="employee">Employee</option>
+                    <option value="intern">Intern</option>
+                  </select>
+                </Field>
+                <Field label="Department">
+                  <select
+                    value={form.department}
+                    onChange={(e) =>
+                      setForm({ ...form, department: e.target.value })
+                    }
+                  >
+                    {DEPARTMENTS.filter((d) => d !== "management").map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            )}
+            {createType === "founder" && (
+              <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[0.05] p-4 text-xs leading-5 text-amber-700/70">
+                This creates a separate Firebase Auth account and a Founder
+                profile in Firestore. Keep Founder accounts limited to trusted
+                management users.
+              </div>
+            )}
+            {error && (
+              <div className="rounded-xl border border-red-500/20 bg-red-500/[0.05] p-3 text-xs text-red-700">
+                {error}
+              </div>
+            )}
+            {message && (
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] p-3 text-xs text-emerald-700">
+                {message}
+              </div>
+            )}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setShowCreate(false)}
+                className="flex-1 rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3 text-sm text-[var(--brand-black)]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createAccount}
+                disabled={actionLoading === "create"}
+                className="flex-1 rounded-xl bg-[var(--brand-red)] px-4 py-3 text-sm font-semibold disabled:opacity-50"
+              >
+                {actionLoading === "create" ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 size={16} className="animate-spin" /> Creating...
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-2">
+                    <Check size={16} /> Create account
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </Modal>
       )}
 
-      {showRole && <Modal title={`Edit ${showRole.name || "member"}`} onClose={() => setShowRole(null)}><div className="space-y-4"><Field label="Role"><select value={showRole.role || "employee"} onChange={(e) => changeRole(showRole, e.target.value)}>{EMPLOYEE_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}</select></Field><Field label="Department"><select value={showRole.department || "development"} onChange={(e) => changeDepartment(showRole, e.target.value)}>{DEPARTMENTS.filter((d) => d !== "management").map((d) => <option key={d} value={d}>{d}</option>)}</select></Field><p className="text-xs text-white/30">Changing an employee's role updates the Firestore profile immediately. Management controls remain Founder-only.</p></div></Modal>}
+      {showRole && (
+        <Modal
+          title={`Edit ${showRole.name || "member"}`}
+          onClose={() => setShowRole(null)}
+        >
+          <div className="space-y-4">
+            <Field label="Role">
+              <select
+                value={showRole.role || "employee"}
+                onChange={(e) => changeRole(showRole, e.target.value)}
+              >
+                {EMPLOYEE_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Department">
+              <select
+                value={showRole.department || "development"}
+                onChange={(e) => changeDepartment(showRole, e.target.value)}
+              >
+                {DEPARTMENTS.filter((d) => d !== "management").map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <p className="text-xs text-[var(--brand-medium-gray)]">
+              Changing an employee's role updates the Firestore profile
+              immediately. Management controls remain Founder-only.
+            </p>
+          </div>
+        </Modal>
+      )}
 
-      {showFounderTransfer && <Modal title="Change Founder" onClose={() => setShowFounderTransfer(false)}><p className="text-sm leading-6 text-white/45">Select an active employee or intern to receive Founder access. The current Founder will become an employee and will be signed out.</p><div className="mt-5 space-y-2">{members.filter((m) => m.role !== "founder" && m.active !== false).map((member) => <button key={member.id} onClick={() => transferFounder(member)} disabled={actionLoading === member.id} className="w-full rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 text-left hover:bg-white/[0.05] disabled:opacity-50"><div className="flex items-center justify-between"><div><p className="font-semibold">{member.name || "Unnamed"}</p><p className="mt-1 text-xs text-white/30">{member.email} · {member.role} · {member.department}</p></div>{actionLoading === member.id ? <Loader2 size={17} className="animate-spin" /> : <Crown size={17} className="text-amber-300" />}</div></button>)}{members.filter((m) => m.role !== "founder" && m.active !== false).length === 0 && <p className="rounded-2xl border border-white/10 p-5 text-sm text-white/40">No active employee or intern is available for transfer.</p>}</div></Modal>}
+      {showFounderTransfer && (
+        <Modal
+          title="Change Founder"
+          onClose={() => setShowFounderTransfer(false)}
+        >
+          <p className="text-sm leading-6 text-[var(--brand-medium-gray)]">
+            Select an active employee or intern to receive Founder access. The
+            current Founder will become an employee and will be signed out.
+          </p>
+          <div className="mt-5 space-y-2">
+            {members
+              .filter((m) => m.role !== "founder" && m.active !== false)
+              .map((member) => (
+                <button
+                  key={member.id}
+                  onClick={() => transferFounder(member)}
+                  disabled={actionLoading === member.id}
+                  className="w-full rounded-2xl border border-[var(--brand-border)] bg-white p-4 text-left hover:bg-[var(--brand-red-light)] disabled:opacity-50"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold">
+                        {member.name || "Unnamed"}
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
+                        {member.email} · {member.role} · {member.department}
+                      </p>
+                    </div>
+                    {actionLoading === member.id ? (
+                      <Loader2 size={17} className="animate-spin" />
+                    ) : (
+                      <Crown size={17} className="text-amber-700" />
+                    )}
+                  </div>
+                </button>
+              ))}
+            {members.filter((m) => m.role !== "founder" && m.active !== false)
+              .length === 0 && (
+              <p className="rounded-2xl border border-[var(--brand-border)] p-5 text-sm text-[var(--brand-medium-gray)]">
+                No active employee or intern is available for transfer.
+              </p>
+            )}
+          </div>
+        </Modal>
+      )}
     </main>
   );
 }
 
-function Stat({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) { return <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">{icon}</div><p className="mt-4 text-xs text-white/35">{label}</p><p className="mt-1 text-3xl font-bold">{value}</p></div>; }
-function Info({ title, text }: { title: string; text: string }) { return <div className="rounded-2xl border border-white/[0.07] bg-white/[0.018] p-5"><p className="font-semibold">{title}</p><p className="mt-2 text-xs leading-6 text-white/30">{text}</p></div>; }
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md"><div className="w-full max-w-xl rounded-3xl border border-white/10 bg-[#0c0c10] p-6 shadow-2xl"><div className="flex items-center justify-between gap-4"><h2 className="text-xl font-semibold">{title}</h2><button onClick={onClose} className="rounded-xl bg-white/[0.04] p-2 text-white/50 hover:text-white"><X size={17} /></button></div><div className="mt-5">{children}</div></div></div>; }
-function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/40">{label}</span>{children}</label>; }
+function Stat({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-5">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-red)]/10 text-[var(--brand-red)]">
+        {icon}
+      </div>
+      <p className="mt-4 text-xs text-[var(--brand-medium-gray)]">{label}</p>
+      <p className="mt-1 text-3xl font-bold">{value}</p>
+    </div>
+  );
+}
+function Info({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-5">
+      <p className="font-semibold">{title}</p>
+      <p className="mt-2 text-xs leading-6 text-[var(--brand-medium-gray)]">
+        {text}
+      </p>
+    </div>
+  );
+}
+function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4 ">
+      <div className="w-full max-w-xl rounded-3xl border border-[var(--brand-border)] bg-white p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-xl font-semibold">{title}</h2>
+          <button
+            onClick={onClose}
+            className="rounded-xl bg-white p-2 text-[var(--brand-black)] hover:text-[var(--brand-black)]"
+          >
+            <X size={17} />
+          </button>
+        </div>
+        <div className="mt-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[var(--brand-black)]">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}

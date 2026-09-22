@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import { auth, db } from "@/lib/firebase";
+import BrandLogo from "@/app/components/brand-logo";
 
 export default function Home() {
   const [name, setName] = useState("");
@@ -61,7 +62,7 @@ export default function Home() {
       const userCredential = await signInWithEmailAndPassword(
         auth,
         email.trim(),
-        password
+        password,
       );
 
       const user = userCredential.user;
@@ -96,7 +97,7 @@ export default function Home() {
       try {
         const usersQuery = query(
           collection(db, "users"),
-          where("email", "==", user.email)
+          where("email", "==", user.email),
         );
 
         const usersSnap = await getDocs(usersQuery);
@@ -108,10 +109,7 @@ export default function Home() {
           console.log("FOUND FIRESTORE DATA:", userDoc.data());
         });
       } catch (emailSearchError) {
-        console.error(
-          "EMAIL PROFILE SEARCH ERROR:",
-          emailSearchError
-        );
+        console.error("EMAIL PROFILE SEARCH ERROR:", emailSearchError);
       }
 
       console.log("====================================");
@@ -122,7 +120,7 @@ export default function Home() {
       if (!userSnap.exists()) {
         setMessageType("error");
         setMessage(
-          "Your account exists, but your workspace profile has not been created."
+          "Your account exists, but your workspace profile has not been created.",
         );
 
         await signOut(auth);
@@ -150,7 +148,7 @@ export default function Home() {
       ) {
         setMessageType("error");
         setMessage(
-          "The name does not match your workspace profile. Please enter your registered name."
+          "The name does not match your workspace profile. Please enter your registered name.",
         );
 
         await signOut(auth);
@@ -163,7 +161,7 @@ export default function Home() {
       if (userData.active !== true) {
         setMessageType("error");
         setMessage(
-          "Your account is currently inactive. Please contact the founder."
+          "Your account is currently inactive. Please contact the founder.",
         );
 
         await signOut(auth);
@@ -204,7 +202,7 @@ export default function Home() {
       // ----------------------------------------------------
       setMessageType("error");
       setMessage(
-        "Your account has an invalid role. Please contact the founder."
+        "Your account has an invalid role. Please contact the founder.",
       );
 
       await signOut(auth);
@@ -236,21 +234,18 @@ export default function Home() {
           break;
 
         case "auth/too-many-requests":
-          setMessage(
-            "Too many failed attempts. Please try again later."
-          );
+          setMessage("Too many failed attempts. Please try again later.");
           break;
 
         case "permission-denied":
           setMessage(
-            "Firestore permission denied. Please check your Firestore Rules."
+            "Firestore permission denied. Please check your Firestore Rules.",
           );
           break;
 
         default:
           setMessage(
-            firebaseError.message ||
-              "Something went wrong. Please try again."
+            firebaseError.message || "Something went wrong. Please try again.",
           );
       }
     } finally {
@@ -275,9 +270,7 @@ export default function Home() {
       await sendPasswordResetEmail(auth, email.trim());
 
       setMessageType("success");
-      setMessage(
-        "Password reset email sent. Check your inbox."
-      );
+      setMessage("Password reset email sent. Check your inbox.");
     } catch (error: unknown) {
       console.error("PASSWORD RESET ERROR:", error);
 
@@ -299,8 +292,7 @@ export default function Home() {
 
         default:
           setMessage(
-            firebaseError.message ||
-              "Unable to send password reset email."
+            firebaseError.message || "Unable to send password reset email.",
           );
       }
     } finally {
@@ -309,16 +301,11 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#050509] text-white">
+    <main className="min-h-screen overflow-hidden bg-[var(--surface-secondary)] text-[var(--dark-surface)]">
       {/* Background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-violet-600/20 blur-[120px]" />
-
-        <div className="absolute right-[-100px] top-[15%] h-[450px] w-[450px] rounded-full bg-blue-600/15 blur-[130px]" />
-
-        <div className="absolute bottom-[-150px] left-[30%] h-[400px] w-[400px] rounded-full bg-purple-600/10 blur-[120px]" />
-
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:28px_28px] opacity-30" />
+        <div className="absolute inset-x-0 top-0 h-1 bg-[var(--brand-red)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(10,10,10,0.045)_1px,transparent_1px)] bg-[size:28px_28px] opacity-40" />
       </div>
 
       {/* Main */}
@@ -331,16 +318,9 @@ export default function Home() {
             transition={{ duration: 0.6 }}
             className="mb-8 text-center"
           >
-            {/* Ant Logo */}
-            <div className="mx-auto mb-5 flex h-[72px] w-[72px] items-center justify-center rounded-[20px] border border-white/10 bg-gradient-to-br from-violet-500 to-blue-600 shadow-2xl shadow-violet-500/20">
-              <span className="text-4xl">🐜</span>
-            </div>
+            <BrandLogo className="mx-auto mb-4 shadow-sm" priority />
 
-            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              THE ANT MEDIA
-            </h1>
-
-            <p className="mt-2 text-sm text-white/45">
+            <p className="mt-2 text-sm text-[var(--brand-medium-gray)]">
               Small Team. Big Impact.
             </p>
           </motion.div>
@@ -353,18 +333,15 @@ export default function Home() {
               duration: 0.7,
               delay: 0.1,
             }}
-            className="relative overflow-hidden rounded-[28px] border border-white/[0.09] bg-white/[0.045] p-6 shadow-2xl backdrop-blur-2xl sm:p-8"
+            className="relative overflow-hidden rounded-[24px] border border-[var(--brand-border)] bg-white p-6 shadow-[0_18px_50px_rgba(10,10,10,0.08)] sm:p-8"
           >
-            {/* Card glow */}
-            <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-violet-500/10 blur-3xl" />
-
             <div className="relative">
               {/* Heading */}
               <div className="mb-8">
                 <div className="mb-3 flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50" />
+                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_2px_8px_rgba(0,0,0,0.04)]" />
 
-                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-emerald-400/80">
+                  <span className="text-xs font-medium uppercase tracking-[0.2em] text-emerald-700/80">
                     Workspace Secure
                   </span>
                 </div>
@@ -373,7 +350,7 @@ export default function Home() {
                   Welcome back
                 </h2>
 
-                <p className="mt-2 text-sm text-white/45">
+                <p className="mt-2 text-sm text-[var(--brand-medium-gray)]">
                   Sign in to your workspace
                 </p>
               </div>
@@ -384,7 +361,7 @@ export default function Home() {
                 <div>
                   <label
                     htmlFor="name"
-                    className="mb-2 block text-sm font-medium text-white/75"
+                    className="mb-2 block text-sm font-medium text-[var(--brand-text-secondary)]"
                   >
                     Name
                   </label>
@@ -392,7 +369,7 @@ export default function Home() {
                   <div className="group relative">
                     <User
                       size={18}
-                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35 transition group-focus-within:text-violet-400"
+                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--brand-muted-soft)] transition group-focus-within:text-[var(--brand-red)]"
                     />
 
                     <input
@@ -402,7 +379,7 @@ export default function Home() {
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Enter your registered name"
                       autoComplete="name"
-                      className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 pl-12 pr-4 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-violet-500/50 focus:bg-black/30 focus:ring-4 focus:ring-violet-500/10"
+                      className="h-14 w-full rounded-2xl border border-[var(--brand-border)] bg-[var(--surface-secondary)] pl-12 pr-4 text-sm text-[var(--dark-surface)] outline-none transition placeholder:text-[var(--brand-placeholder)] focus:border-[var(--brand-red)] focus:bg-white focus:ring-4 focus:ring-[var(--brand-red)]/10"
                     />
                   </div>
                 </div>
@@ -411,7 +388,7 @@ export default function Home() {
                 <div>
                   <label
                     htmlFor="email"
-                    className="mb-2 block text-sm font-medium text-white/75"
+                    className="mb-2 block text-sm font-medium text-[var(--brand-text-secondary)]"
                   >
                     Email
                   </label>
@@ -419,7 +396,7 @@ export default function Home() {
                   <div className="group relative">
                     <Mail
                       size={18}
-                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35 transition group-focus-within:text-violet-400"
+                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--brand-muted-soft)] transition group-focus-within:text-[var(--brand-red)]"
                     />
 
                     <input
@@ -429,7 +406,7 @@ export default function Home() {
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@antmedia.com"
                       autoComplete="email"
-                      className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 pl-12 pr-4 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-violet-500/50 focus:bg-black/30 focus:ring-4 focus:ring-violet-500/10"
+                      className="h-14 w-full rounded-2xl border border-[var(--brand-border)] bg-[var(--surface-secondary)] pl-12 pr-4 text-sm text-[var(--dark-surface)] outline-none transition placeholder:text-[var(--brand-placeholder)] focus:border-[var(--brand-red)] focus:bg-white focus:ring-4 focus:ring-[var(--brand-red)]/10"
                     />
                   </div>
                 </div>
@@ -438,7 +415,7 @@ export default function Home() {
                 <div>
                   <label
                     htmlFor="password"
-                    className="mb-2 block text-sm font-medium text-white/75"
+                    className="mb-2 block text-sm font-medium text-[var(--brand-text-secondary)]"
                   >
                     Password
                   </label>
@@ -446,38 +423,28 @@ export default function Home() {
                   <div className="group relative">
                     <LockKeyhole
                       size={18}
-                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35 transition group-focus-within:text-violet-400"
+                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--brand-muted-soft)] transition group-focus-within:text-[var(--brand-red)]"
                     />
 
                     <input
                       id="password"
                       type={showPassword ? "text" : "password"}
                       value={password}
-                      onChange={(e) =>
-                        setPassword(e.target.value)
-                      }
+                      onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter your password"
                       autoComplete="current-password"
-                      className="h-14 w-full rounded-2xl border border-white/10 bg-black/20 pl-12 pr-12 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-violet-500/50 focus:bg-black/30 focus:ring-4 focus:ring-violet-500/10"
+                      className="h-14 w-full rounded-2xl border border-[var(--brand-border)] bg-[var(--surface-secondary)] pl-12 pr-12 text-sm text-[var(--dark-surface)] outline-none transition placeholder:text-[var(--brand-placeholder)] focus:border-[var(--brand-red)] focus:bg-white focus:ring-4 focus:ring-[var(--brand-red)]/10"
                     />
 
                     <button
                       type="button"
-                      onClick={() =>
-                        setShowPassword(!showPassword)
-                      }
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-white/35 transition hover:text-white"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--brand-muted-soft)] transition hover:text-[var(--dark-surface)]"
                       aria-label={
-                        showPassword
-                          ? "Hide password"
-                          : "Show password"
+                        showPassword ? "Hide password" : "Show password"
                       }
                     >
-                      {showPassword ? (
-                        <EyeOff size={18} />
-                      ) : (
-                        <Eye size={18} />
-                      )}
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
                 </div>
@@ -488,11 +455,9 @@ export default function Home() {
                     type="button"
                     onClick={handleForgotPassword}
                     disabled={resetLoading}
-                    className="text-sm font-medium text-violet-400 transition hover:text-violet-300 disabled:opacity-50"
+                    className="text-sm font-medium text-[var(--brand-red)] transition hover:text-[var(--brand-red-dark)] disabled:opacity-50"
                   >
-                    {resetLoading
-                      ? "Sending..."
-                      : "Forgot password?"}
+                    {resetLoading ? "Sending..." : "Forgot password?"}
                   </button>
                 </div>
 
@@ -511,21 +476,15 @@ export default function Home() {
                     }}
                     className={`rounded-2xl border px-4 py-3 text-sm ${
                       messageType === "success"
-                        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
-                        : "border-red-500/20 bg-red-500/10 text-red-300"
+                        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700"
+                        : "border-red-500/20 bg-red-500/10 text-red-700"
                     }`}
                   >
                     <div className="flex items-start gap-2">
                       {messageType === "success" ? (
-                        <CheckCircle2
-                          size={17}
-                          className="mt-0.5 shrink-0"
-                        />
+                        <CheckCircle2 size={17} className="mt-0.5 shrink-0" />
                       ) : (
-                        <ShieldCheck
-                          size={17}
-                          className="mt-0.5 shrink-0"
-                        />
+                        <ShieldCheck size={17} className="mt-0.5 shrink-0" />
                       )}
 
                       <span>{message}</span>
@@ -539,13 +498,13 @@ export default function Home() {
                   whileTap={{ scale: loading ? 1 : 0.98 }}
                   type="submit"
                   disabled={loading}
-                  className="group relative flex h-14 w-full items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-r from-violet-600 to-blue-600 font-semibold shadow-xl shadow-violet-600/20 transition hover:shadow-violet-600/30 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="group relative flex h-14 w-full items-center justify-center overflow-hidden rounded-2xl bg-[var(--brand-red)] font-semibold text-[var(--brand-black)] shadow-sm transition hover:bg-[var(--brand-red-dark)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <span className="absolute inset-0 bg-white/10 opacity-0 transition group-hover:opacity-100" />
+                  <span className="absolute inset-0 bg-white opacity-0 transition group-hover:opacity-100" />
 
                   {loading ? (
                     <div className="relative flex items-center gap-3">
-                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--brand-border)] border-t-white" />
                       <span>Signing in...</span>
                     </div>
                   ) : (
@@ -562,45 +521,39 @@ export default function Home() {
 
               {/* Divider */}
               <div className="my-7 flex items-center gap-4">
-                <div className="h-px flex-1 bg-white/[0.08]" />
-                <span className="text-[11px] uppercase tracking-widest text-white/25">
+                <div className="h-px flex-1 bg-[var(--brand-border)]" />
+                <span className="text-[11px] uppercase tracking-widest text-[var(--brand-muted-soft)]">
                   The Ant Media
                 </span>
-                <div className="h-px flex-1 bg-white/[0.08]" />
+                <div className="h-px flex-1 bg-[var(--brand-border)]" />
               </div>
 
               {/* Security indicators */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3">
+                <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--surface-secondary)] p-3">
                   <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10">
-                    <ShieldCheck
-                      size={16}
-                      className="text-emerald-400"
-                    />
+                    <ShieldCheck size={16} className="text-emerald-700" />
                   </div>
 
-                  <p className="text-xs font-medium text-white/70">
+                  <p className="text-xs font-medium text-[var(--brand-text-secondary)]">
                     Secure Access
                   </p>
 
-                  <p className="mt-0.5 text-[10px] text-white/30">
+                  <p className="mt-0.5 text-[10px] text-[var(--brand-muted-soft)]">
                     Firebase Authentication
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-3">
-                  <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-violet-500/10">
-                    <Zap
-                      size={16}
-                      className="text-violet-400"
-                    />
+                <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-red-light)] p-3">
+                  <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--brand-red)]/10">
+                    <Zap size={16} className="text-[var(--brand-red)]" />
                   </div>
 
-                  <p className="text-xs font-medium text-white/70">
+                  <p className="text-xs font-medium text-[var(--brand-text-secondary)]">
                     Workspace Ready
                   </p>
 
-                  <p className="mt-0.5 text-[10px] text-white/30">
+                  <p className="mt-0.5 text-[10px] text-[var(--brand-muted-soft)]">
                     Fast &amp; reliable
                   </p>
                 </div>
@@ -618,7 +571,7 @@ export default function Home() {
             }}
             className="mt-6 text-center"
           >
-            <p className="text-xs text-white/25">
+            <p className="text-xs text-[var(--brand-muted-soft)]">
               © 2026 The Ant Media. Internal Management System.
             </p>
           </motion.div>

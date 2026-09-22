@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity,
@@ -35,6 +36,7 @@ import {
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import BrandLogo from "@/app/components/brand-logo";
 
 type Task = {
   id: string;
@@ -46,7 +48,14 @@ type Task = {
   assignedToName?: string;
   submittedByName?: string;
   teamMemberIds?: string[];
-  teamMembers?: Array<{ id?: string; name?: string; email?: string; role?: string; department?: string; isTeamLead?: boolean }>;
+  teamMembers?: Array<{
+    id?: string;
+    name?: string;
+    email?: string;
+    role?: string;
+    department?: string;
+    isTeamLead?: boolean;
+  }>;
   client?: string;
   clientName?: string;
   department?: string;
@@ -100,13 +109,17 @@ function getTimestampMillis(value: any) {
     if (typeof value?.toMillis === "function") return value.toMillis();
     if (typeof value?.toDate === "function") return value.toDate().getTime();
     if (value instanceof Date) return value.getTime();
-    if (typeof value === "string" || typeof value === "number") return new Date(value).getTime();
+    if (typeof value === "string" || typeof value === "number")
+      return new Date(value).getTime();
   } catch {}
   return 0;
 }
 
 function normalizeStatus(status?: string) {
-  return String(status || "TO DO").toUpperCase().replace(/[\\_-]+/g, " ").trim();
+  return String(status || "TO DO")
+    .toUpperCase()
+    .replace(/[\\_-]+/g, " ")
+    .trim();
 }
 
 function isCompleted(status?: string) {
@@ -128,9 +141,10 @@ function isTaskOverdue(task: Task) {
   if (isCompleted(task.status)) return false;
 
   const raw = task.deadline || task.deadlineDate || "";
-  const value = task.deadlineTime && !String(raw).includes("T")
-    ? `${raw}T${task.deadlineTime}`
-    : raw;
+  const value =
+    task.deadlineTime && !String(raw).includes("T")
+      ? `${raw}T${task.deadlineTime}`
+      : raw;
   const date = new Date(value);
 
   return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
@@ -145,9 +159,11 @@ function getWorkloadLabel(value: number) {
 
 function getPriorityClass(priority?: string) {
   const value = String(priority || "MEDIUM").toUpperCase();
-  if (value === "URGENT" || value === "HIGH") return "bg-red-500/10 text-red-300 border-red-500/20";
-  if (value === "MEDIUM") return "bg-amber-500/10 text-amber-300 border-amber-500/20";
-  return "bg-emerald-500/10 text-emerald-300 border-emerald-500/20";
+  if (value === "URGENT" || value === "HIGH")
+    return "bg-red-500/10 text-red-700 border-red-500/20";
+  if (value === "MEDIUM")
+    return "bg-amber-500/10 text-amber-700 border-amber-500/20";
+  return "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
 }
 
 export default function FounderDashboard() {
@@ -158,8 +174,12 @@ export default function FounderDashboard() {
   const [founderName, setFounderName] = useState("Founder");
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [liveTasks, setLiveTasks] = useState<Task[]>([]);
-  const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>([]);
-  const [todayApprovedLeaveIds, setTodayApprovedLeaveIds] = useState<string[]>([]);
+  const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>(
+    [],
+  );
+  const [todayApprovedLeaveIds, setTodayApprovedLeaveIds] = useState<string[]>(
+    [],
+  );
 
   /*
    * LIVE FOUNDER OVERVIEW DATA
@@ -188,7 +208,9 @@ export default function FounderDashboard() {
         return;
       }
 
-      setFounderName(user.displayName || user.email?.split("@")[0] || "Founder");
+      setFounderName(
+        user.displayName || user.email?.split("@")[0] || "Founder",
+      );
 
       unsubscribeUsers?.();
       unsubscribeUsers = onSnapshot(
@@ -199,12 +221,12 @@ export default function FounderDashboard() {
             .filter(
               (item) =>
                 item.active === true &&
-                (item.role === "employee" || item.role === "intern")
+                (item.role === "employee" || item.role === "intern"),
             )
             .sort((a, b) =>
               String(a.name || a.email || "").localeCompare(
-                String(b.name || b.email || "")
-              )
+                String(b.name || b.email || ""),
+              ),
             );
 
           setUsers(members);
@@ -212,7 +234,7 @@ export default function FounderDashboard() {
         (error) => {
           console.error("Founder users listener error:", error);
           setUsers([]);
-        }
+        },
       );
 
       unsubscribeTasks?.();
@@ -224,7 +246,7 @@ export default function FounderDashboard() {
             .sort(
               (a, b) =>
                 getTimestampMillis(b.updatedAt || b.createdAt) -
-                getTimestampMillis(a.updatedAt || a.createdAt)
+                getTimestampMillis(a.updatedAt || a.createdAt),
             );
 
           setLiveTasks(items);
@@ -232,7 +254,7 @@ export default function FounderDashboard() {
         (error) => {
           console.error("Founder tasks listener error:", error);
           setLiveTasks([]);
-        }
+        },
       );
 
       const todayKey = getTodayKey();
@@ -241,10 +263,12 @@ export default function FounderDashboard() {
         collection(db, "attendance"),
         (snapshot) => {
           const records = snapshot.docs
-            .map((item) => ({ id: item.id, ...item.data() }) as AttendanceRecord)
+            .map(
+              (item) => ({ id: item.id, ...item.data() }) as AttendanceRecord,
+            )
             .filter(
               (record) =>
-                record.date === todayKey || record.id.endsWith(`_${todayKey}`)
+                record.date === todayKey || record.id.endsWith(`_${todayKey}`),
             );
 
           setTodayAttendance(records);
@@ -252,7 +276,7 @@ export default function FounderDashboard() {
         (error) => {
           console.error("Founder attendance listener error:", error);
           setTodayAttendance([]);
-        }
+        },
       );
 
       unsubscribeLeaveRequests?.();
@@ -262,9 +286,13 @@ export default function FounderDashboard() {
           const leaveIds = snapshot.docs
             .map((item) => ({ id: item.id, ...item.data() }) as any)
             .filter((request) => {
-              if (String(request.status || "").toUpperCase() !== "APPROVED") return false;
-              if (!request.userId || !request.startDate || !request.endDate) return false;
-              return request.startDate <= todayKey && request.endDate >= todayKey;
+              if (String(request.status || "").toUpperCase() !== "APPROVED")
+                return false;
+              if (!request.userId || !request.startDate || !request.endDate)
+                return false;
+              return (
+                request.startDate <= todayKey && request.endDate >= todayKey
+              );
             })
             .map((request) => String(request.userId));
 
@@ -273,7 +301,7 @@ export default function FounderDashboard() {
         (error) => {
           console.error("Founder leave listener error:", error);
           setTodayApprovedLeaveIds([]);
-        }
+        },
       );
 
       unsubscribeNotifications?.();
@@ -294,7 +322,7 @@ export default function FounderDashboard() {
         (error) => {
           console.error("Founder notification badge error:", error);
           setEmployeeNotificationCount(0);
-        }
+        },
       );
     });
 
@@ -310,7 +338,9 @@ export default function FounderDashboard() {
 
   const memberStats = users.map((member) => {
     const memberTasks = liveTasks.filter((task) => {
-      const teamIds = Array.isArray(task.teamMemberIds) ? task.teamMemberIds : [];
+      const teamIds = Array.isArray(task.teamMemberIds)
+        ? task.teamMemberIds
+        : [];
       const nestedTeam = Array.isArray(task.teamMembers)
         ? task.teamMembers.some((item) => item?.id === member.id)
         : false;
@@ -326,16 +356,13 @@ export default function FounderDashboard() {
 
     const activeCount = memberTasks.filter(isActiveTask).length;
     const attendance = todayAttendance.find(
-      (record) => record.userId === member.id
+      (record) => record.userId === member.id,
     );
     const attendanceStatus = normalizeStatus(attendance?.status);
     const onLeave =
-      attendanceStatus === "LEAVE" ||
-      todayApprovedLeaveIds.includes(member.id);
+      attendanceStatus === "LEAVE" || todayApprovedLeaveIds.includes(member.id);
     const present =
-      Boolean(attendance?.checkIn) &&
-      !onLeave &&
-      attendanceStatus !== "ABSENT";
+      Boolean(attendance?.checkIn) && !onLeave && attendanceStatus !== "ABSENT";
 
     return {
       member,
@@ -348,40 +375,42 @@ export default function FounderDashboard() {
   const totalActiveTasks = liveTasks.filter(isActiveTask).length;
   const overdueTaskCount = liveTasks.filter(isTaskOverdue).length;
   const todayTasks = liveTasks.filter(
-    (task) => getTaskDateKey(task) === getTodayKey() && isActiveTask(task)
+    (task) => getTaskDateKey(task) === getTodayKey() && isActiveTask(task),
   );
   const presentCount = memberStats.filter((item) => item.present).length;
   const leaveCount = memberStats.filter((item) => item.onLeave).length;
-  const absentCount = Math.max(
-    0,
-    users.length - presentCount - leaveCount
-  );
+  const absentCount = Math.max(0, users.length - presentCount - leaveCount);
   const attendanceRate = users.length
     ? Math.round((presentCount / users.length) * 100)
     : 0;
   const busiestMember = [...memberStats].sort(
-    (a, b) => b.activeCount - a.activeCount
+    (a, b) => b.activeCount - a.activeCount,
   )[0];
   const busiestCount = busiestMember?.activeCount || 0;
   const maxActiveTasks = Math.max(
     1,
-    ...memberStats.map((item) => item.activeCount)
+    ...memberStats.map((item) => item.activeCount),
   );
   const overallWorkloadShare = totalActiveTasks
     ? Math.round((busiestCount / maxActiveTasks) * 100)
     : 0;
 
   const recentActivities = liveTasks.slice(0, 4).map((task) => ({
-    icon: normalizeStatus(task.status) === "COMPLETED" ? CheckCircle2 : FileText,
+    icon:
+      normalizeStatus(task.status) === "COMPLETED" ? CheckCircle2 : FileText,
     title: `${task.title || "Untitled task"} — ${normalizeStatus(task.status).toLowerCase()}`,
     person: task.assignedToName || task.submittedByName || "Team task",
     time: getTimestampMillis(task.updatedAt || task.createdAt)
       ? new Date(
-          getTimestampMillis(task.updatedAt || task.createdAt)
-        ).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+          getTimestampMillis(task.updatedAt || task.createdAt),
+        ).toLocaleString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
       : "Recent",
   }));
-
 
   const handleLogout = async () => {
     try {
@@ -400,25 +429,21 @@ export default function FounderDashboard() {
     { label: "Team", icon: Users, path: "/founder/team" },
     { label: "Attendance", icon: UserCheck, path: "/founder/attendance" },
     { label: "Clients", icon: ShieldCheck, path: "/founder/clients" },
-    { label: "Content Calendar", icon: CalendarDays, path: "/founder/content-calendar" },
+    {
+      label: "Content Calendar",
+      icon: CalendarDays,
+      path: "/founder/content-calendar",
+    },
     { label: "Notifications", icon: Bell, path: "/founder/notifications" },
   ];
 
   return (
-    <main className="min-h-screen bg-[#050507] text-white">
+    <main className="min-h-screen bg-white text-[var(--brand-black)]">
       {/* =====================================================
           BACKGROUND
       ====================================================== */}
 
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute left-[-180px] top-[-180px] h-[500px] w-[500px] rounded-full bg-violet-600/10 blur-[140px]" />
-
-        <div className="absolute right-[-200px] top-[20%] h-[500px] w-[500px] rounded-full bg-blue-600/10 blur-[150px]" />
-
-        <div className="absolute bottom-[-250px] left-[35%] h-[500px] w-[500px] rounded-full bg-purple-600/5 blur-[150px]" />
-
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:28px_28px]" />
-      </div>
+      <div className="pointer-events-none fixed inset-0 border-t-2 border-[var(--brand-red)] bg-[linear-gradient(rgba(255,255,255,0.018)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.018)_1px,transparent_1px)] bg-[size:40px_40px]" />
 
       {/* =====================================================
           MOBILE OVERLAY
@@ -431,7 +456,7 @@ export default function FounderDashboard() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-40 bg-black/60  lg:hidden"
           />
         )}
       </AnimatePresence>
@@ -445,35 +470,23 @@ export default function FounderDashboard() {
           width: collapsed ? 82 : 260,
         }}
         transition={{ duration: 0.25 }}
-        className={`fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-white/[0.07] bg-[#08080c]/95 backdrop-blur-2xl ${
-          sidebarOpen
-            ? "translate-x-0"
-            : "-translate-x-full lg:translate-x-0"
+        className={`fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-[var(--brand-border)] bg-white  ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
         {/* Logo */}
-        <div className="flex h-[78px] items-center border-b border-white/[0.07] px-5">
+        <div className="flex h-[78px] items-center border-b border-[var(--brand-border)] px-5">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-blue-600 shadow-lg shadow-violet-600/20">
-              <span className="text-xl">🐜</span>
-            </div>
-
-            {!collapsed && (
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold tracking-wide">
-                  THE ANT MEDIA
-                </p>
-
-                <p className="text-[10px] text-white/35">
-                  Management System
-                </p>
-              </div>
+            {collapsed ? (
+              <BrandLogo compact />
+            ) : (
+              <BrandLogo className="h-[68px] w-[160px]" priority />
             )}
           </div>
 
           <button
             onClick={() => setSidebarOpen(false)}
-            className="ml-auto rounded-lg p-2 text-white/40 hover:bg-white/5 hover:text-white lg:hidden"
+            className="ml-auto rounded-lg p-2 text-[var(--brand-black)] hover:bg-[var(--brand-red-light)] hover:text-[var(--brand-black)] lg:hidden"
           >
             <X size={18} />
           </button>
@@ -482,9 +495,9 @@ export default function FounderDashboard() {
         {/* Workspace */}
         {!collapsed && (
           <div className="px-4 pt-5">
-            <div className="rounded-2xl border border-violet-500/10 bg-gradient-to-br from-violet-500/10 to-blue-500/5 p-3">
+            <div className="rounded-2xl border border-[var(--brand-red-secondary)]/10 bg-[var(--brand-red)]/10 p-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/15 text-sm font-bold text-violet-300">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--brand-red)]/15 text-sm font-bold text-[var(--brand-red)]">
                   A
                 </div>
 
@@ -493,12 +506,12 @@ export default function FounderDashboard() {
                     Founder Workspace
                   </p>
 
-                  <p className="mt-0.5 truncate text-[10px] text-white/35">
+                  <p className="mt-0.5 truncate text-[10px] text-[var(--brand-medium-gray)]">
                     Full access
                   </p>
                 </div>
 
-                <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/40" />
+                <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_2px_8px_rgba(0,0,0,0.04)]" />
               </div>
             </div>
           </div>
@@ -508,7 +521,7 @@ export default function FounderDashboard() {
           <button
             onClick={handleLogout}
             title={collapsed ? "Sign out" : undefined}
-            className="flex w-full items-center gap-3 rounded-xl border border-red-500/10 bg-red-500/[0.04] px-3 py-3 text-sm font-medium text-red-300/80 transition hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-200"
+            className="flex w-full items-center gap-3 rounded-xl border border-red-500/10 bg-red-500/[0.04] px-3 py-3 text-sm font-medium text-red-700/80 transition hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-700"
           >
             <LogOut size={18} />
             {!collapsed && <span>Sign out</span>}
@@ -518,7 +531,7 @@ export default function FounderDashboard() {
         {/* Navigation */}
         <nav className="mt-6 flex-1 space-y-1 px-3">
           {!collapsed && (
-            <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/25">
+            <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-dark-gray)]">
               Workspace
             </p>
           )}
@@ -538,16 +551,16 @@ export default function FounderDashboard() {
                 title={collapsed ? item.label : undefined}
                 className={`group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm transition ${
                   active
-                    ? "bg-violet-500/10 text-violet-300"
-                    : "text-white/45 hover:bg-white/[0.04] hover:text-white"
+                    ? "border border-[var(--brand-red)]/35 bg-[var(--brand-red)]/15 text-[var(--brand-black)]"
+                    : "text-[var(--brand-black)] hover:bg-[var(--brand-red-light)] hover:text-[var(--brand-black)]"
                 }`}
               >
                 <Icon
                   size={18}
                   className={`shrink-0 ${
                     active
-                      ? "text-violet-400"
-                      : "text-white/35 group-hover:text-white/70"
+                      ? "text-[var(--brand-red)]"
+                      : "text-[var(--brand-black)] group-hover:text-[var(--brand-black)]"
                   }`}
                 />
 
@@ -557,7 +570,7 @@ export default function FounderDashboard() {
 
                     {item.label === "Notifications" &&
                       employeeNotificationCount > 0 && (
-                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500/15 px-1.5 text-[9px] font-bold text-red-300">
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500/15 px-1.5 text-[9px] font-bold text-red-700">
                           {employeeNotificationCount > 99
                             ? "99+"
                             : employeeNotificationCount}
@@ -570,25 +583,26 @@ export default function FounderDashboard() {
           })}
 
           {!collapsed && (
-            <p className="mb-3 mt-7 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/25">
+            <p className="mb-3 mt-7 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-dark-gray)]">
               System
             </p>
           )}
 
-          <button
+          <Link
+            href="/founder/settings"
             title={collapsed ? "Settings" : undefined}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-white/45 transition hover:bg-white/[0.04] hover:text-white"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-[var(--brand-black)] transition hover:bg-[var(--brand-red-light)] hover:text-[var(--brand-black)]"
           >
             <Settings size={18} />
             {!collapsed && <span>Settings</span>}
-          </button>
+          </Link>
         </nav>
 
         {/* Collapse */}
-        <div className="border-t border-white/[0.07] p-3">
+        <div className="border-t border-[var(--brand-border)] p-3">
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="hidden w-full items-center justify-center rounded-xl p-3 text-white/35 transition hover:bg-white/[0.04] hover:text-white lg:flex"
+            className="hidden w-full items-center justify-center rounded-xl p-3 text-[var(--brand-black)] transition hover:bg-[var(--brand-red-light)] hover:text-[var(--brand-black)] lg:flex"
           >
             <ChevronRight
               size={18}
@@ -597,7 +611,6 @@ export default function FounderDashboard() {
               }`}
             />
           </button>
-
         </div>
       </motion.aside>
 
@@ -614,42 +627,38 @@ export default function FounderDashboard() {
             TOPBAR
         ==================================================== */}
 
-        <header className="sticky top-0 z-30 flex h-[78px] items-center justify-between border-b border-white/[0.07] bg-[#050507]/75 px-4 backdrop-blur-2xl sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 flex h-[78px] items-center justify-between border-b border-[var(--brand-border)] bg-white px-4  sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-2.5 text-white/60 lg:hidden"
+              className="rounded-xl border border-[var(--brand-border)] bg-white p-2.5 text-[var(--brand-black)] lg:hidden"
             >
               <Menu size={19} />
             </button>
 
             <div>
-              <p className="text-xs text-white/30">
+              <p className="text-xs text-[var(--brand-medium-gray)]">
                 Founder / Workspace
               </p>
 
-              <h1 className="mt-0.5 text-lg font-bold">
-                {activePage}
-              </h1>
+              <h1 className="mt-0.5 text-lg font-bold">{activePage}</h1>
             </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Search */}
-            <button className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-white/30 transition hover:border-white/15 hover:text-white/60 sm:flex">
+            <button className="hidden items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-xs text-[var(--brand-black)] transition hover:border-[var(--brand-border)] hover:text-[var(--brand-black)] sm:flex">
               <Search size={15} />
               <span>Search</span>
-              <span className="ml-3 rounded-md border border-white/10 px-1.5 py-0.5 text-[9px]">
+              <span className="ml-3 rounded-md border border-[var(--brand-border)] px-1.5 py-0.5 text-[9px]">
                 Ctrl K
               </span>
             </button>
 
             {/* Notifications */}
-            <button
-              onClick={() => {
-                window.location.href = "/founder/notifications";
-              }}
-              className="relative rounded-xl border border-white/[0.08] bg-white/[0.03] p-2.5 text-white/50 transition hover:bg-white/[0.06] hover:text-white"
+            <Link
+              href="/founder/notifications"
+              className="relative rounded-xl border border-[var(--brand-border)] bg-white p-2.5 text-[var(--brand-black)] transition hover:bg-[var(--brand-red-light)] hover:text-[var(--brand-black)]"
               aria-label="Notifications"
             >
               <Bell size={18} />
@@ -657,27 +666,25 @@ export default function FounderDashboard() {
               {employeeNotificationCount > 0 && (
                 <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-red-400" />
               )}
-            </button>
+            </Link>
 
             {/* Profile */}
-            <button className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] p-1.5 pr-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-blue-500 text-xs font-bold">
+            <button className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-white p-1.5 pr-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand-red)] text-xs font-bold">
                 A
               </div>
 
               <div className="hidden text-left sm:block">
-                <p className="text-xs font-semibold">
-                  Akash
-                </p>
+                <p className="text-xs font-semibold">Akash</p>
 
-                <p className="text-[9px] text-white/30">
+                <p className="text-[9px] text-[var(--brand-medium-gray)]">
                   Founder
                 </p>
               </div>
 
               <ChevronDown
                 size={14}
-                className="hidden text-white/30 sm:block"
+                className="hidden text-[var(--brand-black)] sm:block"
               />
             </button>
           </div>
@@ -695,23 +702,27 @@ export default function FounderDashboard() {
             className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"
           >
             <div>
-              <p className="mb-1 text-sm text-white/35">
+              <p className="mb-1 text-sm text-[var(--brand-medium-gray)]">
                 {formatTodayLong()}
               </p>
 
               <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                Good morning, {founderName}.
+                Good morning,{" "}
+                <span className="text-[var(--brand-red)]">{founderName}</span>.
               </h2>
 
-              <p className="mt-1 text-sm text-white/35">
+              <p className="mt-1 text-sm text-[var(--brand-medium-gray)]">
                 Here&apos;s what&apos;s happening across The Ant Media.
               </p>
             </div>
 
-            <button className="flex w-fit items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2.5 text-sm font-semibold shadow-lg shadow-violet-600/15 transition hover:scale-[1.02]">
+            <Link
+              href="/founder/tasks?create=1"
+              className="flex w-fit items-center gap-2 rounded-xl bg-[var(--brand-red)] px-4 py-2.5 text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,0.04)] shadow-black/15 transition hover:scale-[1.02]"
+            >
               <Plus size={17} />
               Create Task
-            </button>
+            </Link>
           </motion.div>
 
           {/* =================================================
@@ -737,7 +748,9 @@ export default function FounderDashboard() {
               {
                 label: "Overdue",
                 value: String(overdueTaskCount),
-                detail: overdueTaskCount ? "Needs attention" : "Nothing overdue",
+                detail: overdueTaskCount
+                  ? "Needs attention"
+                  : "Nothing overdue",
                 icon: AlertCircle,
                 trend: "Live deadline status",
               },
@@ -757,18 +770,27 @@ export default function FounderDashboard() {
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.06 }}
-                  className="group relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 backdrop-blur-xl transition hover:border-white/[0.12] sm:p-5"
+                  className="group relative overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-white p-4 transition hover:border-[var(--brand-border)] sm:p-5"
                 >
                   <div className="flex items-start justify-between">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-400">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--brand-red)]/10 text-[var(--brand-red)]">
                       <Icon size={18} />
                     </div>
-                    <ArrowUpRight size={15} className="text-white/15 transition group-hover:text-white/40" />
+                    <ArrowUpRight
+                      size={15}
+                      className="text-[var(--brand-black)] transition group-hover:text-[var(--brand-black)]"
+                    />
                   </div>
-                  <p className="mt-4 text-xs text-white/35">{stat.label}</p>
-                  <p className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">{stat.value}</p>
-                  <p className="mt-1 text-[10px] text-white/25">{stat.detail}</p>
-                  <div className="mt-3 flex items-center gap-1.5 text-[10px] text-emerald-400/70">
+                  <p className="mt-4 text-xs text-[var(--brand-medium-gray)]">
+                    {stat.label}
+                  </p>
+                  <p className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+                    {stat.value}
+                  </p>
+                  <p className="mt-1 text-[10px] text-[var(--brand-medium-gray)]">
+                    {stat.detail}
+                  </p>
+                  <div className="mt-3 flex items-center gap-1.5 text-[10px] text-emerald-700/70">
                     <TrendingUp size={12} />
                     {stat.trend}
                   </div>
@@ -783,168 +805,166 @@ export default function FounderDashboard() {
 
           <div className="mt-5 grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
             {/* Team Pulse */}
-            <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 backdrop-blur-xl">
+            <section className="rounded-2xl border border-[var(--brand-border)] bg-white p-5 ">
               <div className="mb-5 flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <Activity
-                      size={17}
-                      className="text-violet-400"
-                    />
+                    <Activity size={17} className="text-[var(--brand-red)]" />
 
-                    <h3 className="font-semibold">
-                      Team Pulse
-                    </h3>
+                    <h3 className="font-semibold">Team Pulse</h3>
                   </div>
 
-                  <p className="mt-1 text-xs text-white/30">
+                  <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
                     Live team workload overview
                   </p>
                 </div>
 
-                <button className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300">
+                <button className="flex items-center gap-1 text-xs text-[var(--brand-red)] hover:text-[var(--brand-red)]">
                   View team
                   <ChevronRight size={14} />
                 </button>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {memberStats.map(({ member, activeCount, present, onLeave }, index) => (
-                  <motion.div
-                    key={member.name}
-                    initial={{ opacity: 0, scale: 0.97 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: index * 0.04 }}
-                    className="rounded-xl border border-white/[0.06] bg-black/10 p-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-500/30 to-blue-500/30 text-xs font-bold">
-                          {String(member.name || member.email || "?").charAt(0).toUpperCase()}
+                {memberStats.map(
+                  ({ member, activeCount, present, onLeave }, index) => (
+                    <motion.div
+                      key={member.name}
+                      initial={{ opacity: 0, scale: 0.97 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.04 }}
+                      className="rounded-xl border border-[var(--brand-border)] bg-white p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-red)]/20 text-xs font-bold">
+                            {String(member.name || member.email || "?")
+                              .charAt(0)
+                              .toUpperCase()}
+                          </div>
+
+                          <span
+                            className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[var(--dark-elevated)] ${
+                              present ? "bg-emerald-400" : "bg-amber-400"
+                            }`}
+                          />
                         </div>
 
-                        <span
-                          className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#101014] ${
-                            present
-                              ? "bg-emerald-400"
-                              : "bg-amber-400"
-                          }`}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-semibold">
+                            {member.name}
+                          </p>
+
+                          <p className="truncate text-[10px] text-[var(--brand-medium-gray)]">
+                            {member.department || member.role || "Team member"}
+                          </p>
+                        </div>
+
+                        <MoreHorizontal
+                          size={15}
+                          className="text-[var(--brand-black)]"
                         />
                       </div>
 
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-semibold">
-                          {member.name}
-                        </p>
+                      <div className="mt-4">
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <span className="text-[10px] text-[var(--brand-black)]">
+                            Relative workload
+                          </span>
 
-                        <p className="truncate text-[10px] text-white/30">
-                          {member.department || member.role || "Team member"}
-                        </p>
+                          <span className="text-[10px] font-medium text-[var(--brand-black)]">
+                            {activeCount} active{" "}
+                            {activeCount === 1 ? "task" : "tasks"}
+                          </span>
+                        </div>
+
+                        <div className="h-1.5 overflow-hidden rounded-full bg-[var(--brand-border)]">
+                          <div
+                            className="h-full rounded-full bg-[var(--brand-red)]"
+                            style={{
+                              width: `${Math.round((activeCount / maxActiveTasks) * 100)}%`,
+                            }}
+                          />
+                        </div>
+
+                        <div className="mt-2 flex justify-between">
+                          <span
+                            className={`text-[9px] ${
+                              present
+                                ? "text-emerald-700/70"
+                                : "text-amber-700/70"
+                            }`}
+                          >
+                            {onLeave
+                              ? "On leave"
+                              : present
+                                ? "Present"
+                                : "Not checked in"}
+                          </span>
+
+                          <span className="text-[9px] text-[var(--brand-black)]">
+                            {getWorkloadLabel(
+                              Math.round((activeCount / maxActiveTasks) * 100),
+                            )}
+                          </span>
+                        </div>
                       </div>
-
-                      <MoreHorizontal
-                        size={15}
-                        className="text-white/20"
-                      />
-                    </div>
-
-                    <div className="mt-4">
-                      <div className="mb-1.5 flex items-center justify-between">
-                        <span className="text-[10px] text-white/30">
-                          Relative workload
-                        </span>
-
-                        <span className="text-[10px] font-medium text-white/55">
-                          {activeCount} active {activeCount === 1 ? "task" : "tasks"}
-                        </span>
-                      </div>
-
-                      <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500"
-                          style={{
-                            width: `${Math.round((activeCount / maxActiveTasks) * 100)}%`,
-                          }}
-                        />
-                      </div>
-
-                      <div className="mt-2 flex justify-between">
-                        <span
-                          className={`text-[9px] ${
-                            present
-                              ? "text-emerald-400/70"
-                              : "text-amber-400/70"
-                          }`}
-                        >
-                          {onLeave ? "On leave" : present ? "Present" : "Not checked in"}
-                        </span>
-
-                        <span className="text-[9px] text-white/25">
-                          {getWorkloadLabel(Math.round((activeCount / maxActiveTasks) * 100))}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  ),
+                )}
               </div>
             </section>
 
             {/* Workload Insight */}
-            <section className="relative overflow-hidden rounded-2xl border border-violet-500/10 bg-gradient-to-br from-violet-500/[0.08] via-white/[0.025] to-blue-500/[0.05] p-5">
-              <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-violet-500/10 blur-3xl" />
-
+            <section className="relative overflow-hidden rounded-2xl border border-[var(--brand-red)]/25 bg-white p-5">
               <div className="relative">
                 <div className="flex items-center gap-2">
-                  <Zap
-                    size={17}
-                    className="text-amber-400"
-                  />
+                  <Zap size={17} className="text-[var(--brand-red)]" />
 
-                  <h3 className="font-semibold">
-                    Smart Workload
-                  </h3>
+                  <h3 className="font-semibold">Smart Workload</h3>
                 </div>
 
-                <p className="mt-1 text-xs text-white/30">
+                <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
                   Automatic workload analysis
                 </p>
 
                 <div className="mt-6">
-                  <p className="text-4xl font-bold">
-                    {totalActiveTasks}
-                  </p>
+                  <p className="text-4xl font-bold">{totalActiveTasks}</p>
 
-                  <p className="mt-1 text-xs text-white/35">
+                  <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
                     Active tasks across the team
                   </p>
                 </div>
 
-                <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/[0.07]">
+                <div className="mt-5 h-2 overflow-hidden rounded-full bg-[var(--brand-border)]">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-violet-500 to-blue-500"
+                    className="h-full rounded-full bg-[var(--brand-red)]"
                     style={{ width: `${overallWorkloadShare}%` }}
                   />
                 </div>
 
-                <p className="mt-2 text-[9px] text-white/25">
+                <p className="mt-2 text-[9px] text-[var(--brand-medium-gray)]">
                   {busiestMember
                     ? `${busiestMember.member.name || busiestMember.member.email || "Team member"} currently carries the highest relative workload with ${busiestCount} active ${busiestCount === 1 ? "task" : "tasks"}.`
                     : "No active task load is currently assigned."}
                 </p>
 
-                <div className="mt-5 rounded-xl border border-amber-400/10 bg-amber-400/5 p-3">
-                  <p className="text-xs font-medium text-amber-300">
+                <div className="mt-5 rounded-xl border border-[var(--brand-red)]/25 bg-[var(--brand-red)]/10 p-3">
+                  <p className="text-xs font-medium text-[var(--brand-red)]">
                     ⚡ Live workload insight
                   </p>
 
-                  <p className="mt-1 text-[10px] leading-relaxed text-white/35">
+                  <p className="mt-1 text-[10px] leading-relaxed text-[var(--brand-medium-gray)]">
                     {busiestMember
                       ? `${busiestMember.member.name || busiestMember.member.email || "Team member"} currently has ${busiestCount} active ${busiestCount === 1 ? "task" : "tasks"}.`
                       : "No active team tasks are currently assigned."}
                   </p>
                 </div>
 
-                <button onClick={() => (window.location.href = "/founder/team")} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.035] py-2.5 text-xs font-medium text-white/60 transition hover:bg-white/[0.06] hover:text-white">
+                <button
+                  onClick={() => (window.location.href = "/founder/team")}
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--brand-border)] bg-white py-2.5 text-xs font-medium text-[var(--brand-black)] transition hover:bg-[var(--brand-red-light)] hover:text-[var(--brand-black)]"
+                >
                   View live team workload
                   <ArrowUpRight size={14} />
                 </button>
@@ -958,31 +978,29 @@ export default function FounderDashboard() {
 
           <div className="mt-5 grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
             {/* Tasks */}
-            <section className="overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025] backdrop-blur-xl">
-              <div className="flex items-center justify-between border-b border-white/[0.06] p-5">
+            <section className="overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-white ">
+              <div className="flex items-center justify-between border-b border-[var(--brand-border)] p-5">
                 <div>
-                  <h3 className="font-semibold">
-                    Today&apos;s Tasks
-                  </h3>
+                  <h3 className="font-semibold">Today&apos;s Tasks</h3>
 
-                  <p className="mt-1 text-xs text-white/30">
+                  <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
                     Tasks requiring attention
                   </p>
                 </div>
 
-                <button className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300">
+                <button className="flex items-center gap-1 text-xs text-[var(--brand-red)] hover:text-[var(--brand-red)]">
                   View all
                   <ChevronRight size={14} />
                 </button>
               </div>
 
-              <div className="divide-y divide-white/[0.05]">
+              <div className="divide-y divide-[var(--brand-border)]">
                 {todayTasks.slice(0, 4).map((task) => (
                   <div
                     key={task.id}
-                    className="group flex items-center gap-3 p-4 transition hover:bg-white/[0.02] sm:p-5"
+                    className="group flex items-center gap-3 p-4 transition hover:bg-[var(--brand-red-light)] sm:p-5"
                   >
-                    <div className="hidden h-9 w-9 items-center justify-center rounded-xl bg-white/[0.04] text-white/30 sm:flex">
+                    <div className="hidden h-9 w-9 items-center justify-center rounded-xl bg-white text-[var(--brand-black)] sm:flex">
                       <Target size={16} />
                     </div>
 
@@ -994,14 +1012,14 @@ export default function FounderDashboard() {
 
                         <span
                           className={`rounded-md border px-1.5 py-0.5 text-[8px] font-medium ${getPriorityClass(
-                            task.priority
+                            task.priority,
                           )}`}
                         >
                           {task.priority}
                         </span>
                       </div>
 
-                      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-white/30">
+                      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-[var(--brand-black)]">
                         <span>{task.assignedToName || "Team task"}</span>
                         <span>•</span>
                         <span>{task.department || "—"}</span>
@@ -1010,13 +1028,13 @@ export default function FounderDashboard() {
                       </div>
                     </div>
 
-                    <span className="hidden rounded-lg bg-white/[0.04] px-2.5 py-1.5 text-[9px] text-white/45 sm:block">
+                    <span className="hidden rounded-lg bg-white px-2.5 py-1.5 text-[9px] text-[var(--brand-black)] sm:block">
                       {task.status}
                     </span>
 
                     <ChevronRight
                       size={15}
-                      className="text-white/15 transition group-hover:text-white/40"
+                      className="text-[var(--brand-black)] transition group-hover:text-[var(--brand-black)]"
                     />
                   </div>
                 ))}
@@ -1024,40 +1042,44 @@ export default function FounderDashboard() {
             </section>
 
             {/* Content Calendar */}
-            <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 backdrop-blur-xl">
+            <section className="rounded-2xl border border-[var(--brand-border)] bg-white p-5 ">
               <div className="flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-2">
                     <CalendarDays
                       size={17}
-                      className="text-blue-400"
+                      className="text-[var(--brand-red)]"
                     />
 
-                    <h3 className="font-semibold">
-                      Content Calendar
-                    </h3>
+                    <h3 className="font-semibold">Content Calendar</h3>
                   </div>
 
-                  <p className="mt-1 text-xs text-white/30">
+                  <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
                     Upcoming content
                   </p>
                 </div>
 
-                <button className="rounded-lg p-1.5 text-white/25 hover:bg-white/5 hover:text-white">
+                <button className="rounded-lg p-1.5 text-[var(--brand-black)] hover:bg-[var(--brand-red-light)] hover:text-[var(--brand-black)]">
                   <MoreHorizontal size={17} />
                 </button>
               </div>
 
-              <div className="mt-5 rounded-xl border border-white/[0.05] bg-black/10 p-4">
-                <p className="text-xs font-medium text-white/60">
+              <div className="mt-5 rounded-xl border border-[var(--brand-border)] bg-white p-4">
+                <p className="text-xs font-medium text-[var(--brand-dark-gray)]">
                   Content events are managed in the Content Calendar.
                 </p>
-                <p className="mt-1 text-[10px] leading-relaxed text-white/30">
-                  Open the calendar to view current scheduled content without placeholder data on the overview.
+                <p className="mt-1 text-[10px] leading-relaxed text-[var(--brand-medium-gray)]">
+                  Open the calendar to view current scheduled content without
+                  placeholder data on the overview.
                 </p>
               </div>
 
-              <button onClick={() => (window.location.href = "/founder/content-calendar")} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.07] py-2.5 text-xs text-white/45 transition hover:bg-white/[0.04] hover:text-white">
+              <button
+                onClick={() =>
+                  (window.location.href = "/founder/content-calendar")
+                }
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--brand-border)] py-2.5 text-xs text-[var(--brand-black)] transition hover:bg-[var(--brand-red-light)] hover:text-[var(--brand-black)]"
+              >
                 Open calendar
                 <ArrowUpRight size={14} />
               </button>
@@ -1070,54 +1092,49 @@ export default function FounderDashboard() {
 
           <div className="mt-5 grid gap-5 xl:grid-cols-2">
             {/* Attendance */}
-            <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 backdrop-blur-xl">
+            <section className="rounded-2xl border border-[var(--brand-border)] bg-white p-5 ">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <Clock3
-                      size={17}
-                      className="text-emerald-400"
-                    />
+                    <Clock3 size={17} className="text-emerald-700" />
 
-                    <h3 className="font-semibold">
-                      Today&apos;s Attendance
-                    </h3>
+                    <h3 className="font-semibold">Today&apos;s Attendance</h3>
                   </div>
 
-                  <p className="mt-1 text-xs text-white/30">
+                  <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
                     {formatTodayLong()}
                   </p>
                 </div>
 
-                <button className="text-xs text-violet-400 hover:text-violet-300">
+                <button className="text-xs text-[var(--brand-red)] hover:text-[var(--brand-red)]">
                   View report
                 </button>
               </div>
 
               <div className="mt-5 grid grid-cols-3 gap-3">
-                <div className="rounded-xl border border-white/[0.05] bg-black/10 p-3 text-center">
-                  <p className="text-xl font-bold text-emerald-300">
+                <div className="rounded-xl border border-[var(--brand-border)] bg-white p-3 text-center">
+                  <p className="text-xl font-bold text-emerald-700">
                     {presentCount}
                   </p>
-                  <p className="mt-1 text-[9px] text-white/30">
+                  <p className="mt-1 text-[9px] text-[var(--brand-medium-gray)]">
                     Present
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-white/[0.05] bg-black/10 p-3 text-center">
-                  <p className="text-xl font-bold text-amber-300">
+                <div className="rounded-xl border border-[var(--brand-border)] bg-white p-3 text-center">
+                  <p className="text-xl font-bold text-amber-700">
                     {leaveCount}
                   </p>
-                  <p className="mt-1 text-[9px] text-white/30">
+                  <p className="mt-1 text-[9px] text-[var(--brand-medium-gray)]">
                     Leave
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-white/[0.05] bg-black/10 p-3 text-center">
-                  <p className="text-xl font-bold text-red-300">
+                <div className="rounded-xl border border-[var(--brand-border)] bg-white p-3 text-center">
+                  <p className="text-xl font-bold text-red-700">
                     {absentCount}
                   </p>
-                  <p className="mt-1 text-[9px] text-white/30">
+                  <p className="mt-1 text-[9px] text-[var(--brand-medium-gray)]">
                     Absent
                   </p>
                 </div>
@@ -1125,16 +1142,16 @@ export default function FounderDashboard() {
 
               <div className="mt-5">
                 <div className="mb-2 flex justify-between">
-                  <span className="text-[10px] text-white/30">
+                  <span className="text-[10px] text-[var(--brand-black)]">
                     Attendance rate
                   </span>
 
-                  <span className="text-[10px] text-emerald-400">
+                  <span className="text-[10px] text-emerald-700">
                     {attendanceRate}%
                   </span>
                 </div>
 
-                <div className="h-2 overflow-hidden rounded-full bg-white/[0.06]">
+                <div className="h-2 overflow-hidden rounded-full bg-white">
                   <div
                     className="h-full rounded-full bg-emerald-400"
                     style={{ width: `${attendanceRate}%` }}
@@ -1144,19 +1161,17 @@ export default function FounderDashboard() {
             </section>
 
             {/* Activity */}
-            <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 backdrop-blur-xl">
+            <section className="rounded-2xl border border-[var(--brand-border)] bg-white p-5 ">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold">
-                    Recent Activity
-                  </h3>
+                  <h3 className="font-semibold">Recent Activity</h3>
 
-                  <p className="mt-1 text-xs text-white/30">
+                  <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
                     Latest workspace events
                   </p>
                 </div>
 
-                <button className="text-xs text-violet-400 hover:text-violet-300">
+                <button className="text-xs text-[var(--brand-red)] hover:text-[var(--brand-red)]">
                   View history
                 </button>
               </div>
@@ -1166,30 +1181,23 @@ export default function FounderDashboard() {
                   const Icon = activity.icon;
 
                   return (
-                    <div
-                      key={index}
-                      className="flex gap-3"
-                    >
+                    <div key={index} className="flex gap-3">
                       <div className="relative">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10">
-                          <Icon
-                            size={15}
-                            className="text-violet-400"
-                          />
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand-red)]/10">
+                          <Icon size={15} className="text-[var(--brand-red)]" />
                         </div>
 
-                        {index !==
-                          recentActivities.length - 1 && (
-                          <div className="absolute left-1/2 top-8 h-5 w-px -translate-x-1/2 bg-white/[0.07]" />
+                        {index !== recentActivities.length - 1 && (
+                          <div className="absolute left-1/2 top-8 h-5 w-px -translate-x-1/2 bg-white" />
                         )}
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs text-white/65">
+                        <p className="text-xs text-[var(--brand-medium-gray)]">
                           {activity.title}
                         </p>
 
-                        <div className="mt-1 flex gap-2 text-[9px] text-white/25">
+                        <div className="mt-1 flex gap-2 text-[9px] text-[var(--brand-black)]">
                           <span>{activity.person}</span>
                           <span>•</span>
                           <span>{activity.time}</span>
@@ -1206,11 +1214,8 @@ export default function FounderDashboard() {
               FOOTER
           ================================================== */}
 
-          <footer className="mt-8 flex flex-col justify-between gap-3 border-t border-white/[0.06] py-6 text-[10px] text-white/20 sm:flex-row">
-            <p>
-              © 2026 The Ant Media · Internal Management
-              System
-            </p>
+          <footer className="mt-8 flex flex-col justify-between gap-3 border-t border-[var(--brand-border)] py-6 text-[10px] text-[var(--brand-black)] sm:flex-row">
+            <p>© 2026 The Ant Media · Internal Management System</p>
 
             <div className="flex gap-4">
               <span>Secure workspace</span>

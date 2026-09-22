@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 
 import { motion } from "framer-motion";
+import BrandLogo from "@/app/components/brand-logo";
 
 import {
   collection,
@@ -48,11 +49,7 @@ import {
   runTransaction,
 } from "firebase/firestore";
 
-import {
-  onAuthStateChanged,
-  signOut,
-  User,
-} from "firebase/auth";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
 
 import { auth, db } from "@/lib/firebase";
 
@@ -157,83 +154,74 @@ const statusConfig: Record<
 > = {
   todo: {
     label: "To Do",
-    className:
-      "text-slate-300 bg-slate-500/10 border-slate-500/20",
+    className: "text-slate-300 bg-slate-500/10 border-slate-500/20",
     icon: FolderOpen,
   },
 
   "to do": {
     label: "To Do",
-    className:
-      "text-slate-300 bg-slate-500/10 border-slate-500/20",
+    className: "text-slate-300 bg-slate-500/10 border-slate-500/20",
     icon: FolderOpen,
   },
 
   in_progress: {
     label: "In Progress",
     className:
-      "text-blue-300 bg-blue-500/10 border-blue-500/20",
+      "text-[var(--brand-red)] bg-[var(--brand-red)]/10 border-[var(--brand-red-secondary)]/20",
     icon: Play,
   },
 
   "in progress": {
     label: "In Progress",
     className:
-      "text-blue-300 bg-blue-500/10 border-blue-500/20",
+      "text-[var(--brand-red)] bg-[var(--brand-red)]/10 border-[var(--brand-red-secondary)]/20",
     icon: Play,
   },
 
   submitted: {
     label: "Submitted",
     className:
-      "text-violet-300 bg-violet-500/10 border-violet-500/20",
+      "text-[var(--brand-red)] bg-[var(--brand-red)]/10 border-[var(--brand-red-secondary)]/20",
     icon: Send,
   },
 
   review: {
     label: "Under Review",
     className:
-      "text-violet-300 bg-violet-500/10 border-violet-500/20",
+      "text-[var(--brand-red)] bg-[var(--brand-red)]/10 border-[var(--brand-red-secondary)]/20",
     icon: MessageSquare,
   },
 
   changes_requested: {
     label: "Changes Requested",
-    className:
-      "text-orange-300 bg-orange-500/10 border-orange-500/20",
+    className: "text-orange-700 bg-orange-500/10 border-orange-500/20",
     icon: RefreshCw,
   },
 
   changes: {
     label: "Changes Requested",
-    className:
-      "text-orange-300 bg-orange-500/10 border-orange-500/20",
+    className: "text-orange-700 bg-orange-500/10 border-orange-500/20",
     icon: RefreshCw,
   },
 
   approved: {
     label: "Approved",
-    className:
-      "text-emerald-300 bg-emerald-500/10 border-emerald-500/20",
+    className: "text-emerald-700 bg-emerald-500/10 border-emerald-500/20",
     icon: CheckCircle2,
   },
 
   completed: {
     label: "Completed",
-    className:
-      "text-emerald-300 bg-emerald-500/10 border-emerald-500/20",
+    className: "text-emerald-700 bg-emerald-500/10 border-emerald-500/20",
     icon: CheckCircle2,
   },
 };
 
 const priorityConfig: Record<string, string> = {
   low: "text-slate-300 bg-slate-500/10 border-slate-500/20",
-  medium:
-    "text-yellow-300 bg-yellow-500/10 border-yellow-500/20",
-  high:
-    "text-orange-300 bg-orange-500/10 border-orange-500/20",
-  urgent:
-    "text-red-300 bg-red-500/10 border-red-500/20",
+  medium: "text-yellow-300 bg-yellow-500/10 border-yellow-500/20",
+  high: "text-orange-700 bg-orange-500/10 border-orange-500/20",
+  urgent: "text-red-700 bg-red-500/10 border-red-500/20",
 };
 
 function normalize(value?: string) {
@@ -270,9 +258,7 @@ function formatDateTime(value: any) {
 
   try {
     const date =
-      typeof value?.toDate === "function"
-        ? value.toDate()
-        : new Date(value);
+      typeof value?.toDate === "function" ? value.toDate() : new Date(value);
 
     if (Number.isNaN(date.getTime())) {
       return "Not available";
@@ -304,9 +290,7 @@ function getTimestamp(value: any) {
 
     const date = new Date(value);
 
-    return Number.isNaN(date.getTime())
-      ? 0
-      : date.getTime();
+    return Number.isNaN(date.getTime()) ? 0 : date.getTime();
   } catch {
     return 0;
   }
@@ -317,16 +301,11 @@ function isCompleted(status?: string) {
 }
 
 function isReview(status?: string) {
-  return [
-    "submitted",
-    "review",
-  ].includes(normalize(status));
+  return ["submitted", "review"].includes(normalize(status));
 }
 
 function isChangesRequested(status?: string) {
-  return ["changes_requested", "changes"].includes(
-    normalize(status)
-  );
+  return ["changes_requested", "changes"].includes(normalize(status));
 }
 
 function isOverdue(task: Task) {
@@ -336,10 +315,7 @@ function isOverdue(task: Task) {
 
   if (Number.isNaN(date.getTime())) return false;
 
-  return (
-    date.getTime() < Date.now() &&
-    !isCompleted(task.status)
-  );
+  return date.getTime() < Date.now() && !isCompleted(task.status);
 }
 
 function getDaysRemaining(task: Task) {
@@ -349,12 +325,9 @@ function getDaysRemaining(task: Task) {
 
   if (Number.isNaN(deadline.getTime())) return null;
 
-  const diff =
-    deadline.getTime() - Date.now();
+  const diff = deadline.getTime() - Date.now();
 
-  return Math.ceil(
-    diff / (1000 * 60 * 60 * 24)
-  );
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
 function getInitials(name: string) {
@@ -369,251 +342,178 @@ function getInitials(name: string) {
 export default function EmployeeTasksPage() {
   const [user, setUser] = useState<User | null>(null);
 
-  const [profile, setProfile] =
-    useState<Profile | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const [menuOpen, setMenuOpen] =
-    useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const [search, setSearch] =
-    useState("");
+  const [search, setSearch] = useState("");
 
-  const [filter, setFilter] =
-    useState<
-      | "all"
-      | "active"
-      | "review"
-      | "changes"
-      | "completed"
-      | "overdue"
-    >("all");
+  const [filter, setFilter] = useState<
+    "all" | "active" | "review" | "changes" | "completed" | "overdue"
+  >("all");
 
-  const [selectedTask, setSelectedTask] =
-    useState<Task | null>(null);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-  const [actionLoading, setActionLoading] =
-    useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const [submissionDriveUrl, setSubmissionDriveUrl] =
-    useState("");
+  const [submissionDriveUrl, setSubmissionDriveUrl] = useState("");
 
-  const [submissionText, setSubmissionText] =
-    useState("");
+  const [submissionText, setSubmissionText] = useState("");
 
-  const [showSubmitModal, setShowSubmitModal] =
-    useState(false);
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
 
-  const [showEditSubmissionModal, setShowEditSubmissionModal] =
-    useState(false);
+  const [showEditSubmissionModal, setShowEditSubmissionModal] = useState(false);
 
-  const [editingSubmissionUrl, setEditingSubmissionUrl] =
-    useState("");
+  const [editingSubmissionUrl, setEditingSubmissionUrl] = useState("");
 
-  const [editingSubmissionText, setEditingSubmissionText] =
-    useState("");
+  const [editingSubmissionText, setEditingSubmissionText] = useState("");
 
-  const [notificationCount, setNotificationCount] =
-    useState(0);
+  const [notificationCount, setNotificationCount] = useState(0);
 
   useEffect(() => {
-    let unsubscribeTasks: (() => void) | null =
-      null;
+    let unsubscribeTasks: (() => void) | null = null;
 
-    let unsubscribeNotifications:
-      | (() => void)
-      | null = null;
+    let unsubscribeNotifications: (() => void) | null = null;
 
-    const unsubscribeAuth =
-      onAuthStateChanged(
-        auth,
-        async (currentUser) => {
-          if (!currentUser) {
-            window.location.href = "/";
-            return;
-          }
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        window.location.href = "/";
+        return;
+      }
 
-          setUser(currentUser);
+      setUser(currentUser);
 
-          try {
-            /*
-             * PROFILE
-             */
+      try {
+        /*
+         * PROFILE
+         */
 
-            const profileRef = doc(
-              db,
-              "users",
-              currentUser.uid
-            );
+        const profileRef = doc(db, "users", currentUser.uid);
 
-            const profileSnap =
-              await getDoc(profileRef);
+        const profileSnap = await getDoc(profileRef);
 
-            if (!profileSnap.exists()) {
-              await signOut(auth);
-              window.location.href = "/";
-              return;
-            }
-
-            const profileData =
-              profileSnap.data() as Profile;
-
-            if (
-              profileData.active !== true ||
-              !["employee", "intern"].includes(
-                String(profileData.role || "")
-              )
-            ) {
-              await signOut(auth);
-              window.location.href = "/";
-              return;
-            }
-
-            setProfile(profileData);
-
-            /*
-             * TASKS
-             */
-
-            /*
-             * TASKS
-             *
-             * Listen to both:
-             * 1. normal single-assignee tasks
-             * 2. shared team tasks where this user is in teamMemberIds
-             */
-            const taskMap = new Map<string, Task>();
-
-            const publishTasks = () => {
-              const loadedTasks = Array.from(
-                taskMap.values()
-              ).sort(
-                (a, b) =>
-                  getTimestamp(b.createdAt) -
-                  getTimestamp(a.createdAt)
-              );
-
-              setTasks(loadedTasks);
-              setLoading(false);
-            };
-
-            const assignedTasksQuery = query(
-              collection(db, "tasks"),
-              where(
-                "assignedTo",
-                "==",
-                currentUser.uid
-              )
-            );
-
-            const teamTasksQuery = query(
-              collection(db, "tasks"),
-              where(
-                "teamMemberIds",
-                "array-contains",
-                currentUser.uid
-              )
-            );
-
-            const unsubscribeAssigned =
-              onSnapshot(
-                assignedTasksQuery,
-                (snapshot) => {
-                  snapshot.docs.forEach((taskDoc) => {
-                    taskMap.set(taskDoc.id, {
-                      id: taskDoc.id,
-                      ...(taskDoc.data() as Omit<Task, "id">),
-                    });
-                  });
-                  publishTasks();
-                },
-                (error) => {
-                  console.error(
-                    "Employee assigned-task listener error:",
-                    error
-                  );
-                  setLoading(false);
-                }
-              );
-
-            const unsubscribeTeam =
-              onSnapshot(
-                teamTasksQuery,
-                (snapshot) => {
-                  snapshot.docs.forEach((taskDoc) => {
-                    taskMap.set(taskDoc.id, {
-                      id: taskDoc.id,
-                      ...(taskDoc.data() as Omit<Task, "id">),
-                    });
-                  });
-                  publishTasks();
-                },
-                (error) => {
-                  console.error(
-                    "Employee team-task listener error:",
-                    error
-                  );
-                  setLoading(false);
-                }
-              );
-
-            unsubscribeTasks = () => {
-              unsubscribeAssigned();
-              unsubscribeTeam();
-            };
-
-            /*
-             * NOTIFICATIONS
-             */
-
-            const notificationQuery =
-              query(
-                collection(
-                  db,
-                  "notifications"
-                ),
-                where(
-                  "userId",
-                  "==",
-                  currentUser.uid
-                )
-              );
-
-            unsubscribeNotifications =
-              onSnapshot(
-                notificationQuery,
-                (snapshot) => {
-                  const unread =
-                    snapshot.docs.filter(
-                      (item) =>
-                        item.data().read !== true
-                    ).length;
-
-                  setNotificationCount(
-                    unread
-                  );
-                },
-                (error) => {
-                  console.error(
-                    "Employee notification listener error:",
-                    error
-                  );
-                }
-              );
-          } catch (error) {
-            console.error(
-              "EMPLOYEE TASK PAGE ERROR:",
-              error
-            );
-
-            setLoading(false);
-          }
+        if (!profileSnap.exists()) {
+          await signOut(auth);
+          window.location.href = "/";
+          return;
         }
-      );
+
+        const profileData = profileSnap.data() as Profile;
+
+        if (
+          profileData.active !== true ||
+          !["employee", "intern"].includes(String(profileData.role || ""))
+        ) {
+          await signOut(auth);
+          window.location.href = "/";
+          return;
+        }
+
+        setProfile(profileData);
+
+        /*
+         * TASKS
+         */
+
+        /*
+         * TASKS
+         *
+         * Listen to both:
+         * 1. normal single-assignee tasks
+         * 2. shared team tasks where this user is in teamMemberIds
+         */
+        const taskMap = new Map<string, Task>();
+
+        const publishTasks = () => {
+          const loadedTasks = Array.from(taskMap.values()).sort(
+            (a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt),
+          );
+
+          setTasks(loadedTasks);
+          setLoading(false);
+        };
+
+        const assignedTasksQuery = query(
+          collection(db, "tasks"),
+          where("assignedTo", "==", currentUser.uid),
+        );
+
+        const teamTasksQuery = query(
+          collection(db, "tasks"),
+          where("teamMemberIds", "array-contains", currentUser.uid),
+        );
+
+        const unsubscribeAssigned = onSnapshot(
+          assignedTasksQuery,
+          (snapshot) => {
+            snapshot.docs.forEach((taskDoc) => {
+              taskMap.set(taskDoc.id, {
+                id: taskDoc.id,
+                ...(taskDoc.data() as Omit<Task, "id">),
+              });
+            });
+            publishTasks();
+          },
+          (error) => {
+            console.error("Employee assigned-task listener error:", error);
+            setLoading(false);
+          },
+        );
+
+        const unsubscribeTeam = onSnapshot(
+          teamTasksQuery,
+          (snapshot) => {
+            snapshot.docs.forEach((taskDoc) => {
+              taskMap.set(taskDoc.id, {
+                id: taskDoc.id,
+                ...(taskDoc.data() as Omit<Task, "id">),
+              });
+            });
+            publishTasks();
+          },
+          (error) => {
+            console.error("Employee team-task listener error:", error);
+            setLoading(false);
+          },
+        );
+
+        unsubscribeTasks = () => {
+          unsubscribeAssigned();
+          unsubscribeTeam();
+        };
+
+        /*
+         * NOTIFICATIONS
+         */
+
+        const notificationQuery = query(
+          collection(db, "notifications"),
+          where("userId", "==", currentUser.uid),
+        );
+
+        unsubscribeNotifications = onSnapshot(
+          notificationQuery,
+          (snapshot) => {
+            const unread = snapshot.docs.filter(
+              (item) => item.data().read !== true,
+            ).length;
+
+            setNotificationCount(unread);
+          },
+          (error) => {
+            console.error("Employee notification listener error:", error);
+          },
+        );
+      } catch (error) {
+        console.error("EMPLOYEE TASK PAGE ERROR:", error);
+
+        setLoading(false);
+      }
+    });
 
     return () => {
       unsubscribeAuth();
@@ -633,44 +533,28 @@ export default function EmployeeTasksPage() {
    */
 
   const activeTasks = useMemo(
-    () =>
-      tasks.filter(
-        (task) =>
-          !isCompleted(task.status)
-      ),
-    [tasks]
+    () => tasks.filter((task) => !isCompleted(task.status)),
+    [tasks],
   );
 
   const reviewTasks = useMemo(
-    () =>
-      tasks.filter((task) =>
-        isReview(task.status)
-      ),
-    [tasks]
+    () => tasks.filter((task) => isReview(task.status)),
+    [tasks],
   );
 
   const changesTasks = useMemo(
-    () =>
-      tasks.filter((task) =>
-        isChangesRequested(task.status)
-      ),
-    [tasks]
+    () => tasks.filter((task) => isChangesRequested(task.status)),
+    [tasks],
   );
 
   const completedTasks = useMemo(
-    () =>
-      tasks.filter((task) =>
-        isCompleted(task.status)
-      ),
-    [tasks]
+    () => tasks.filter((task) => isCompleted(task.status)),
+    [tasks],
   );
 
   const overdueTasks = useMemo(
-    () =>
-      tasks.filter((task) =>
-        isOverdue(task)
-      ),
-    [tasks]
+    () => tasks.filter((task) => isOverdue(task)),
+    [tasks],
   );
 
   /*
@@ -678,8 +562,7 @@ export default function EmployeeTasksPage() {
    */
 
   const filteredTasks = useMemo(() => {
-    const term =
-      search.trim().toLowerCase();
+    const term = search.trim().toLowerCase();
 
     return tasks.filter((task) => {
       const matchesSearch =
@@ -704,24 +587,16 @@ export default function EmployeeTasksPage() {
 
       switch (filter) {
         case "active":
-          return !isCompleted(
-            task.status
-          );
+          return !isCompleted(task.status);
 
         case "review":
-          return isReview(
-            task.status
-          );
+          return isReview(task.status);
 
         case "changes":
-          return isChangesRequested(
-            task.status
-          );
+          return isChangesRequested(task.status);
 
         case "completed":
-          return isCompleted(
-            task.status
-          );
+          return isCompleted(task.status);
 
         case "overdue":
           return isOverdue(task);
@@ -749,30 +624,20 @@ export default function EmployeeTasksPage() {
     try {
       setActionLoading(task.id);
 
-      await updateDoc(
-        doc(db, "tasks", task.id),
-        {
-          status: "in_progress",
-          startedAt:
-            serverTimestamp(),
-          updatedAt:
-            serverTimestamp(),
-        }
-      );
+      await updateDoc(doc(db, "tasks", task.id), {
+        status: "in_progress",
+        startedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
 
       setSelectedTask({
         ...task,
         status: "in_progress",
       });
     } catch (error) {
-      console.error(
-        "Failed to start task:",
-        error
-      );
+      console.error("Failed to start task:", error);
 
-      alert(
-        "Unable to start this task. Please try again."
-      );
+      alert("Unable to start this task. Please try again.");
     } finally {
       setActionLoading(null);
     }
@@ -782,36 +647,24 @@ export default function EmployeeTasksPage() {
    * RESTART AFTER CHANGES
    */
 
-  async function continueAfterChanges(
-    task: Task
-  ) {
+  async function continueAfterChanges(task: Task) {
     try {
       setActionLoading(task.id);
 
-      await updateDoc(
-        doc(db, "tasks", task.id),
-        {
-          status: "in_progress",
-          changesStartedAt:
-            serverTimestamp(),
-          updatedAt:
-            serverTimestamp(),
-        }
-      );
+      await updateDoc(doc(db, "tasks", task.id), {
+        status: "in_progress",
+        changesStartedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
 
       setSelectedTask({
         ...task,
         status: "in_progress",
       });
     } catch (error) {
-      console.error(
-        "Failed to restart task:",
-        error
-      );
+      console.error("Failed to restart task:", error);
 
-      alert(
-        "Unable to restart this task."
-      );
+      alert("Unable to restart this task.");
     } finally {
       setActionLoading(null);
     }
@@ -829,20 +682,17 @@ export default function EmployeeTasksPage() {
     try {
       setActionLoading(task.id);
 
-      await updateDoc(
-        doc(db, "tasks", task.id),
-        {
-          status: "COMPLETED",
-          completedAt: serverTimestamp(),
-          completedBy: user?.uid || "",
-          completedByName:
-            profile?.name ||
-            user?.displayName ||
-            user?.email?.split("@")[0] ||
-            "Employee",
-          updatedAt: serverTimestamp(),
-        }
-      );
+      await updateDoc(doc(db, "tasks", task.id), {
+        status: "COMPLETED",
+        completedAt: serverTimestamp(),
+        completedBy: user?.uid || "",
+        completedByName:
+          profile?.name ||
+          user?.displayName ||
+          user?.email?.split("@")[0] ||
+          "Employee",
+        updatedAt: serverTimestamp(),
+      });
 
       await notifyFounder(task, "completed");
 
@@ -851,18 +701,11 @@ export default function EmployeeTasksPage() {
         status: "COMPLETED",
       });
 
-      alert(
-        "Task marked as completed. The Founder has been notified."
-      );
+      alert("Task marked as completed. The Founder has been notified.");
     } catch (error) {
-      console.error(
-        "Failed to complete task:",
-        error
-      );
+      console.error("Failed to complete task:", error);
 
-      alert(
-        "Unable to mark this task as completed. Please try again."
-      );
+      alert("Unable to mark this task as completed. Please try again.");
     } finally {
       setActionLoading(null);
     }
@@ -872,39 +715,27 @@ export default function EmployeeTasksPage() {
    * FIND FOUNDER
    */
 
-  async function findFounder(): Promise<
-    Founder | null
-  > {
+  async function findFounder(): Promise<Founder | null> {
     try {
       const founderQuery = query(
         collection(db, "users"),
-        where("role", "==", "founder")
+        where("role", "==", "founder"),
       );
 
-      const founderSnapshot =
-        await getDocs(founderQuery);
+      const founderSnapshot = await getDocs(founderQuery);
 
-      if (
-        founderSnapshot.empty
-      ) {
+      if (founderSnapshot.empty) {
         return null;
       }
 
-      const founderDoc =
-        founderSnapshot.docs[0];
+      const founderDoc = founderSnapshot.docs[0];
 
       return {
         id: founderDoc.id,
-        ...(founderDoc.data() as Omit<
-          Founder,
-          "id"
-        >),
+        ...(founderDoc.data() as Omit<Founder, "id">),
       };
     } catch (error) {
-      console.error(
-        "Unable to find founder:",
-        error
-      );
+      console.error("Unable to find founder:", error);
 
       return null;
     }
@@ -916,93 +747,59 @@ export default function EmployeeTasksPage() {
 
   async function notifyFounder(
     task: Task,
-    type:
-      | "submission"
-      | "changes"
-      | "completed"
+    type: "submission" | "changes" | "completed",
   ) {
     try {
-      const founder =
-        await findFounder();
+      const founder = await findFounder();
 
       if (!founder) {
-        console.warn(
-          "No founder account found."
-        );
+        console.warn("No founder account found.");
 
         return;
       }
 
-      const employeeName =
-        profile?.name ||
-        user?.displayName ||
-        "Employee";
+      const employeeName = profile?.name || user?.displayName || "Employee";
 
-      let title =
-        "Task submitted";
+      let title = "Task submitted";
 
-      let message =
-        `${employeeName} submitted "${task.title || "Untitled task"}" for review.`;
+      let message = `${employeeName} submitted "${task.title || "Untitled task"}" for review.`;
 
       if (type === "changes") {
-        title =
-          "Task resubmitted";
+        title = "Task resubmitted";
 
-        message =
-          `${employeeName} resubmitted "${task.title || "Untitled task"}" after requested changes.`;
+        message = `${employeeName} resubmitted "${task.title || "Untitled task"}" after requested changes.`;
       }
 
       if (type === "completed") {
-        title =
-          "Task completed";
+        title = "Task completed";
 
-        message =
-          `${employeeName} completed "${task.title || "Untitled task"}".`;
+        message = `${employeeName} completed "${task.title || "Untitled task"}".`;
       }
 
-      await addDoc(
-        collection(
-          db,
-          "notifications"
-        ),
-        {
-          userId: founder.id,
-          recipientId: founder.id,
+      await addDoc(collection(db, "notifications"), {
+        userId: founder.id,
+        recipientId: founder.id,
 
-          senderId:
-            user?.uid || "",
-          senderName:
-            employeeName,
+        senderId: user?.uid || "",
+        senderName: employeeName,
 
-          title,
-          message,
+        title,
+        message,
 
-          type:
-            type === "submission"
-              ? "submission"
-              : "review",
+        type: type === "submission" ? "submission" : "review",
 
-          priority:
-            task.priority === "urgent"
-              ? "urgent"
-              : "important",
+        priority: task.priority === "urgent" ? "urgent" : "important",
 
-          read: false,
+        read: false,
 
-          taskId: task.id,
+        taskId: task.id,
 
-          link:
-            "/founder/tasks",
+        link: "/founder/tasks",
 
-          createdAt:
-            serverTimestamp(),
-        }
-      );
+        createdAt: serverTimestamp(),
+      });
     } catch (error) {
-      console.error(
-        "Failed to notify founder:",
-        error
-      );
+      console.error("Failed to notify founder:", error);
     }
   }
 
@@ -1038,8 +835,7 @@ export default function EmployeeTasksPage() {
     }
 
     const recipients =
-      task.changeRecipientIds &&
-      task.changeRecipientIds.length > 0
+      task.changeRecipientIds && task.changeRecipientIds.length > 0
         ? task.changeRecipientIds
         : null;
 
@@ -1075,9 +871,7 @@ export default function EmployeeTasksPage() {
     }
 
     if (!isAllowedToSubmit(selectedTask)) {
-      alert(
-        "You are not authorized to submit this task."
-      );
+      alert("You are not authorized to submit this task.");
       return;
     }
 
@@ -1101,14 +895,12 @@ export default function EmployeeTasksPage() {
     try {
       setActionLoading(selectedTask.id);
 
-      const isResubmission =
-        isChangesRequested(selectedTask.status);
+      const isResubmission = isChangesRequested(selectedTask.status);
 
       const isTeamTask =
         selectedTask.assignmentType === "team" ||
         Boolean(
-          selectedTask.teamMemberIds &&
-          selectedTask.teamMemberIds.length > 0
+          selectedTask.teamMemberIds && selectedTask.teamMemberIds.length > 0,
         );
 
       // A shared team task is completed as soon as the first authorized
@@ -1128,7 +920,9 @@ export default function EmployeeTasksPage() {
         const latestStatus = normalize(latestTask.status);
 
         if (isTeamTask && latestStatus === "completed") {
-          throw new Error("This team task has already been submitted by another team member.");
+          throw new Error(
+            "This team task has already been submitted by another team member.",
+          );
         }
 
         transaction.update(taskRef, {
@@ -1138,8 +932,7 @@ export default function EmployeeTasksPage() {
           submissionName: "Google Drive submission",
           submissionNote: submissionText.trim(),
           submittedBy: user?.uid || "",
-          submittedByName:
-            profile?.name || user?.displayName || "Employee",
+          submittedByName: profile?.name || user?.displayName || "Employee",
           submissionAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -1153,14 +946,9 @@ export default function EmployeeTasksPage() {
           submissionName: "Google Drive submission",
           submissionNote: submissionText.trim(),
           submittedBy: user?.uid || "",
-          submittedByName:
-            profile?.name || user?.displayName || "Employee",
+          submittedByName: profile?.name || user?.displayName || "Employee",
         },
-        isTeamTask
-          ? "completed"
-          : isResubmission
-          ? "changes"
-          : "submission"
+        isTeamTask ? "completed" : isResubmission ? "changes" : "submission",
       );
 
       setSubmissionDriveUrl("");
@@ -1170,8 +958,7 @@ export default function EmployeeTasksPage() {
       const finalStatus =
         selectedTask.assignmentType === "team" ||
         Boolean(
-          selectedTask.teamMemberIds &&
-          selectedTask.teamMemberIds.length > 0
+          selectedTask.teamMemberIds && selectedTask.teamMemberIds.length > 0,
         )
           ? "completed"
           : "submitted";
@@ -1184,14 +971,13 @@ export default function EmployeeTasksPage() {
         submissionName: "Google Drive submission",
         submissionNote: submissionText.trim(),
         submittedBy: user?.uid || "",
-        submittedByName:
-          profile?.name || user?.displayName || "Employee",
+        submittedByName: profile?.name || user?.displayName || "Employee",
       });
 
       alert(
         finalStatus === "completed"
           ? "Team task completed. The submitted document is now visible to all selected team members."
-          : "Work submitted successfully. The Founder has been notified."
+          : "Work submitted successfully. The Founder has been notified.",
       );
     } catch (error) {
       console.error("SUBMIT TASK ERROR:", error);
@@ -1219,7 +1005,7 @@ export default function EmployeeTasksPage() {
 
     if (!["submitted", "review"].includes(currentStatus)) {
       alert(
-        "The submission can be edited only while it is waiting for Founder review."
+        "The submission can be edited only while it is waiting for Founder review.",
       );
       return;
     }
@@ -1249,7 +1035,7 @@ export default function EmployeeTasksPage() {
 
     if (!["submitted", "review"].includes(currentStatus)) {
       alert(
-        "This submission is no longer editable because its review state has changed."
+        "This submission is no longer editable because its review state has changed.",
       );
       return;
     }
@@ -1298,7 +1084,7 @@ export default function EmployeeTasksPage() {
       } catch (notificationError) {
         console.error(
           "Submission updated, but Founder notification failed:",
-          notificationError
+          notificationError,
         );
       }
 
@@ -1340,8 +1126,7 @@ export default function EmployeeTasksPage() {
       user.email?.split("@")[0] ||
       "Employee";
 
-    const ownerRole =
-      profile?.role === "intern" ? "intern" : "employee";
+    const ownerRole = profile?.role === "intern" ? "intern" : "employee";
 
     await addDoc(collection(db, "recycleBinTasks"), {
       ...task,
@@ -1405,12 +1190,20 @@ export default function EmployeeTasksPage() {
       return;
     }
 
-    if (!window.confirm(`Request permission from the Founder to delete "${task.title || "Untitled task"}"?`)) return;
+    if (
+      !window.confirm(
+        `Request permission from the Founder to delete "${task.title || "Untitled task"}"?`,
+      )
+    )
+      return;
 
     try {
       setActionLoading(task.id);
       const employeeName =
-        profile?.name || user.displayName || user.email?.split("@")[0] || "Employee";
+        profile?.name ||
+        user.displayName ||
+        user.email?.split("@")[0] ||
+        "Employee";
 
       await updateDoc(doc(db, "tasks", task.id), {
         deleteRequestStatus: "pending",
@@ -1457,30 +1250,34 @@ export default function EmployeeTasksPage() {
 
   async function deleteApprovedTask(task: Task) {
     if (!user?.uid) return;
-    if (task.deleteRequestStatus !== "approved" || task.deleteRequestedBy !== user.uid) {
+    if (
+      task.deleteRequestStatus !== "approved" ||
+      task.deleteRequestedBy !== user.uid
+    ) {
       alert("The Founder has not approved deletion for your account.");
       return;
     }
-    if (!window.confirm(`Delete "${task.title || "Untitled task"}"? This action cannot be undone.`)) return;
+    if (
+      !window.confirm(
+        `Delete "${task.title || "Untitled task"}"? This action cannot be undone.`,
+      )
+    )
+      return;
 
     try {
       setActionLoading(task.id);
 
-      await moveTaskToRecycleBin(
-        task,
-        "Founder-approved employee deletion"
-      );
+      await moveTaskToRecycleBin(task, "Founder-approved employee deletion");
 
-      await notifyFounderAboutDeletion(
-        task,
-        "Founder-approved deletion"
-      );
+      await notifyFounderAboutDeletion(task, "Founder-approved deletion");
 
       setSelectedTask(null);
       alert("Task moved to your Recycle Bin.");
     } catch (error) {
       console.error("APPROVED DELETE ERROR:", error);
-      alert("Unable to move the task to the Recycle Bin. The original task was kept safe.");
+      alert(
+        "Unable to move the task to the Recycle Bin. The original task was kept safe.",
+      );
     } finally {
       setActionLoading(null);
     }
@@ -1488,19 +1285,24 @@ export default function EmployeeTasksPage() {
 
   async function deleteCompletedTask(task: Task) {
     if (!isCompleted(task.status)) return;
-    if (!window.confirm(`Move "${task.title || "Untitled task"}" to your Recycle Bin?`)) return;
+    if (
+      !window.confirm(
+        `Move "${task.title || "Untitled task"}" to your Recycle Bin?`,
+      )
+    )
+      return;
 
     try {
       setActionLoading(task.id);
 
       await moveTaskToRecycleBin(
         task,
-        "Employee removed completed task from history"
+        "Employee removed completed task from history",
       );
 
       await notifyFounderAboutDeletion(
         task,
-        "Employee removed a completed task from history"
+        "Employee removed a completed task from history",
       );
 
       setSelectedTask(null);
@@ -1525,16 +1327,12 @@ export default function EmployeeTasksPage() {
    * TODAY
    */
 
-  const todayText =
-    new Date().toLocaleDateString(
-      "en-IN",
-      {
-        weekday: "long",
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      }
-    );
+  const todayText = new Date().toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
 
   /*
    * LOADING
@@ -1542,13 +1340,13 @@ export default function EmployeeTasksPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#050507] text-white flex items-center justify-center">
+      <main className="min-h-screen bg-white text-[var(--brand-black)] flex items-center justify-center">
         <div className="text-center">
-          <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center shadow-[0_0_45px_rgba(124,58,237,0.3)] animate-pulse">
+          <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-[var(--brand-red)] flex items-center justify-center shadow-sm animate-pulse">
             <Sparkles size={23} />
           </div>
 
-          <p className="text-white/50">
+          <p className="text-[var(--brand-medium-gray)]">
             Loading your tasks...
           </p>
         </div>
@@ -1562,73 +1360,47 @@ export default function EmployeeTasksPage() {
     user?.email?.split("@")[0] ||
     "Employee";
 
-  const initials =
-    getInitials(displayName);
+  const initials = getInitials(displayName);
 
   return (
-    <main className="min-h-screen bg-[#050507] text-white overflow-x-hidden">
+    <main className="min-h-screen bg-white text-[var(--brand-black)] overflow-x-hidden">
       {/* BACKGROUND */}
 
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-violet-700/10 blur-[140px]" />
-
-        <div className="absolute top-1/3 -right-40 h-[500px] w-[500px] rounded-full bg-blue-700/10 blur-[150px]" />
-
-        <div className="absolute bottom-0 left-1/3 h-[400px] w-[400px] rounded-full bg-indigo-700/5 blur-[130px]" />
-      </div>
+      <div className="fixed inset-0 pointer-events-none overflow-hidden"></div>
 
       <div className="relative flex min-h-screen">
         {/* SIDEBAR */}
 
         <aside
-          className={`fixed z-50 inset-y-0 left-0 w-[270px] border-r border-white/[0.06] bg-[#08080c]/95 backdrop-blur-xl transform transition-transform duration-300 lg:translate-x-0 ${
-            menuOpen
-              ? "translate-x-0"
-              : "-translate-x-full"
+          className={`fixed z-50 inset-y-0 left-0 w-[270px] border-r border-[var(--brand-border)] bg-white  transform transition-transform duration-300 lg:translate-x-0 ${
+            menuOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
           <div className="h-full flex flex-col">
             {/* BRAND */}
 
-            <div className="h-[82px] px-6 flex items-center border-b border-white/[0.06]">
-              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center shadow-lg shadow-violet-600/20">
-                <span className="text-xl">
-                  🐜
-                </span>
-              </div>
-
-              <div className="ml-3">
-                <div className="font-bold tracking-tight">
-                  THE ANT MEDIA
-                </div>
-
-                <div className="text-[11px] text-white/35">
-                  Internal Management
-                </div>
-              </div>
+            <div className="h-[82px] px-6 flex items-center border-b border-[var(--brand-border)]">
+              <BrandLogo className="h-[72px] w-[205px]" priority />
             </div>
 
             {/* PROFILE */}
 
             <div className="p-4">
-              <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.07] p-4">
+              <div className="rounded-2xl border border-[var(--brand-red-secondary)]/15 bg-[var(--brand-red)]/[0.07] p-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-violet-500/15 flex items-center justify-center text-violet-300 font-semibold">
+                  <div className="h-10 w-10 rounded-xl bg-[var(--brand-red)]/15 flex items-center justify-center text-[var(--brand-red)] font-semibold">
                     {initials}
                   </div>
 
                   <div className="min-w-0">
-                    <div className="font-semibold truncate">
-                      {displayName}
-                    </div>
+                    <div className="font-semibold truncate">{displayName}</div>
 
-                    <div className="text-xs text-white/40 capitalize">
-                      {profile?.role ||
-                        "Employee"}
+                    <div className="text-xs text-[var(--brand-black)] capitalize">
+                      {profile?.role || "Employee"}
                     </div>
                   </div>
 
-                  <span className="ml-auto h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-lg shadow-emerald-400/50" />
+                  <span className="ml-auto h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_2px_8px_rgba(0,0,0,0.04)]" />
                 </div>
               </div>
             </div>
@@ -1636,61 +1408,45 @@ export default function EmployeeTasksPage() {
             {/* NAVIGATION */}
 
             <nav className="px-3 space-y-1">
-              <div className="px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/25">
+              <div className="px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-[var(--brand-black)]">
                 Workspace
               </div>
 
               <NavItem
-                icon={
-                  <Sparkles size={18} />
-                }
+                icon={<Sparkles size={18} />}
                 label="Overview"
                 path="/employee"
               />
 
               <NavItem
-                icon={
-                  <FolderOpen size={18} />
-                }
+                icon={<FolderOpen size={18} />}
                 label="My Tasks"
                 active
-                badge={
-                  activeTasks.length
-                }
+                badge={activeTasks.length}
                 path="/employee/tasks"
               />
 
               <NavItem
-                icon={
-                  <Clock3 size={18} />
-                }
+                icon={<Clock3 size={18} />}
                 label="Attendance"
                 path="/employee/attendance"
               />
 
               <NavItem
-                icon={
-                  <CalendarDays size={18} />
-                }
+                icon={<CalendarDays size={18} />}
                 label="Calendar"
                 path="/employee/calendar"
               />
 
               <NavItem
-                icon={
-                  <Bell size={18} />
-                }
+                icon={<Bell size={18} />}
                 label="Notifications"
-                badge={
-                  notificationCount
-                }
+                badge={notificationCount}
                 path="/employee/notifications"
               />
 
               <NavItem
-                icon={
-                  <FileText size={18} />
-                }
+                icon={<FileText size={18} />}
                 label="Leave Requests"
                 path="/employee/leave-requests"
               />
@@ -1698,17 +1454,13 @@ export default function EmployeeTasksPage() {
 
             {/* SIGN OUT */}
 
-            <div className="mt-auto p-4 border-t border-white/[0.06]">
+            <div className="mt-auto p-4 border-t border-[var(--brand-border)]">
               <button
-                onClick={
-                  handleLogout
-                }
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-white/45 hover:text-white hover:bg-white/[0.05] transition"
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[var(--brand-black)] hover:text-[var(--brand-black)] hover:bg-[var(--brand-red-light)] transition"
               >
                 <LogOut size={18} />
-                <span>
-                  Sign out
-                </span>
+                <span>Sign out</span>
               </button>
             </div>
           </div>
@@ -1719,9 +1471,7 @@ export default function EmployeeTasksPage() {
         {menuOpen && (
           <div
             className="fixed inset-0 z-40 bg-black/70 lg:hidden"
-            onClick={() =>
-              setMenuOpen(false)
-            }
+            onClick={() => setMenuOpen(false)}
           />
         )}
 
@@ -1730,72 +1480,55 @@ export default function EmployeeTasksPage() {
         <section className="flex-1 lg:ml-[270px] min-w-0">
           {/* TOPBAR */}
 
-          <header className="sticky top-0 z-30 h-[82px] border-b border-white/[0.06] bg-[#050507]/85 backdrop-blur-xl">
+          <header className="sticky top-0 z-30 h-[82px] border-b border-[var(--brand-border)] bg-white ">
             <div className="h-full px-5 lg:px-8 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() =>
-                    setMenuOpen(true)
-                  }
-                  className="lg:hidden h-10 w-10 rounded-xl border border-white/10 flex items-center justify-center"
+                  onClick={() => setMenuOpen(true)}
+                  className="lg:hidden h-10 w-10 rounded-xl border border-[var(--brand-border)] flex items-center justify-center"
                 >
                   <Menu size={19} />
                 </button>
 
                 <button
-                  onClick={() =>
-                    (window.location.href =
-                      "/employee")
-                  }
-                  className="hidden lg:flex h-10 w-10 rounded-xl border border-white/[0.07] items-center justify-center hover:bg-white/[0.05]"
+                  onClick={() => (window.location.href = "/employee")}
+                  className="hidden lg:flex h-10 w-10 rounded-xl border border-[var(--brand-border)] items-center justify-center hover:bg-[var(--brand-red-light)]"
                 >
-                  <ArrowLeft
-                    size={17}
-                  />
+                  <ArrowLeft size={17} />
                 </button>
 
                 <div>
-                  <div className="text-xs text-white/30">
+                  <div className="text-xs text-[var(--brand-black)]">
                     Employee / Workspace
                   </div>
 
-                  <h1 className="text-xl font-semibold">
-                    My Tasks
-                  </h1>
+                  <h1 className="text-xl font-semibold">My Tasks</h1>
                 </div>
               </div>
 
               <div className="flex items-center gap-3">
                 <button
                   onClick={() =>
-                    (window.location.href =
-                      "/employee/notifications")
+                    (window.location.href = "/employee/notifications")
                   }
-                  className="relative h-10 w-10 rounded-xl border border-white/[0.07] flex items-center justify-center hover:bg-white/[0.05] transition"
+                  className="relative h-10 w-10 rounded-xl border border-[var(--brand-border)] flex items-center justify-center hover:bg-[var(--brand-red-light)] transition"
                 >
-                  <Bell
-                    size={18}
-                    className="text-white/60"
-                  />
+                  <Bell size={18} className="text-[var(--brand-black)]" />
 
-                  {notificationCount >
-                    0 && (
-                    <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.8)]" />
+                  {notificationCount > 0 && (
+                    <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-400 shadow-sm" />
                   )}
                 </button>
 
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center font-semibold">
+                <div className="h-10 w-10 rounded-xl bg-[var(--brand-red)] flex items-center justify-center font-semibold">
                   {initials}
                 </div>
 
                 <div className="hidden md:block">
-                  <div className="text-sm font-semibold">
-                    {displayName}
-                  </div>
+                  <div className="text-sm font-semibold">{displayName}</div>
 
-                  <div className="text-[11px] text-white/35 capitalize">
-                    {profile?.department ||
-                      "Workspace"}
+                  <div className="text-[11px] text-[var(--brand-black)] capitalize">
+                    {profile?.department || "Workspace"}
                   </div>
                 </div>
               </div>
@@ -1810,41 +1543,36 @@ export default function EmployeeTasksPage() {
             <section className="mb-8">
               <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6">
                 <div>
-                  <div className="flex items-center gap-2 text-violet-300 mb-3">
-                    <Sparkles
-                      size={17}
-                    />
+                  <div className="flex items-center gap-2 text-[var(--brand-red)] mb-3">
+                    <Sparkles size={17} />
 
                     <span className="text-sm font-medium">
                       Personal workspace
                     </span>
                   </div>
 
-                  <div className="text-sm text-white/30 mb-2">
+                  <div className="text-sm text-[var(--brand-black)] mb-2">
                     {todayText}
                   </div>
 
                   <h2 className="text-4xl lg:text-5xl font-bold tracking-tight">
                     Your work.
                     <br />
-
-                    <span className="bg-gradient-to-r from-white via-violet-200 to-blue-300 bg-clip-text text-transparent">
+                    <span className="text-[var(--brand-red)]">
                       Your progress.
                     </span>
                   </h2>
 
-                  <p className="mt-4 max-w-2xl text-white/40 text-base leading-7">
-                    Manage your assignments,
-                    submit completed work,
-                    track deadlines and stay
-                    connected with the Founder.
+                  <p className="mt-4 max-w-2xl text-[var(--brand-medium-gray)] text-base leading-7">
+                    Manage your assignments, submit completed work, track
+                    deadlines and stay connected with the Founder.
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2 px-4 py-3 rounded-xl border border-emerald-500/15 bg-emerald-500/[0.05]">
                   <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
 
-                  <span className="text-sm text-emerald-300">
+                  <span className="text-sm text-emerald-700">
                     Workspace Active
                   </span>
                 </div>
@@ -1855,131 +1583,77 @@ export default function EmployeeTasksPage() {
 
             <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
               <StatCard
-                icon={
-                  <FolderOpen
-                    size={19}
-                  />
-                }
+                icon={<FolderOpen size={19} />}
                 label="Active Tasks"
-                value={
-                  activeTasks.length
-                }
+                value={activeTasks.length}
                 description="Currently assigned"
               />
 
               <StatCard
-                icon={
-                  <Clock3
-                    size={19}
-                  />
-                }
+                icon={<Clock3 size={19} />}
                 label="Overdue"
-                value={
-                  overdueTasks.length
-                }
+                value={overdueTasks.length}
                 description={
-                  overdueTasks.length >
-                  0
+                  overdueTasks.length > 0
                     ? "Needs attention"
                     : "Everything on track"
                 }
-                danger={
-                  overdueTasks.length >
-                  0
-                }
+                danger={overdueTasks.length > 0}
               />
 
               <StatCard
-                icon={
-                  <MessageSquare
-                    size={19}
-                  />
-                }
+                icon={<MessageSquare size={19} />}
                 label="Under Review"
-                value={
-                  reviewTasks.length
-                }
+                value={reviewTasks.length}
                 description="Waiting for Founder"
               />
 
               <StatCard
-                icon={
-                  <RefreshCw
-                    size={19}
-                  />
-                }
+                icon={<RefreshCw size={19} />}
                 label="Changes"
-                value={
-                  changesTasks.length
-                }
+                value={changesTasks.length}
                 description="Needs revision"
-                warning={
-                  changesTasks.length >
-                  0
-                }
+                warning={changesTasks.length > 0}
               />
 
               <StatCard
-                icon={
-                  <CheckCircle2
-                    size={19}
-                  />
-                }
+                icon={<CheckCircle2 size={19} />}
                 label="Completed"
-                value={
-                  completedTasks.length
-                }
+                value={completedTasks.length}
                 description="Finished work"
               />
             </section>
 
             {/* FILTER BAR */}
 
-            <section className="rounded-2xl border border-white/[0.07] bg-white/[0.018] p-3 mb-6">
+            <section className="rounded-2xl border border-[var(--brand-border)] bg-white p-3 mb-6">
               <div className="flex flex-col xl:flex-row gap-3">
                 <div className="relative flex-1">
                   <Search
                     size={18}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-white/25"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--brand-black)]"
                   />
 
                   <input
                     value={search}
-                    onChange={(event) =>
-                      setSearch(
-                        event.target.value
-                      )
-                    }
+                    onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search your tasks..."
-                    className="h-12 w-full rounded-xl border border-white/[0.07] bg-black/20 pl-11 pr-4 text-sm outline-none placeholder:text-white/25 focus:border-violet-500/40"
+                    className="h-12 w-full rounded-xl border border-[var(--brand-border)] bg-white pl-11 pr-4 text-sm outline-none placeholder:text-[var(--brand-black)] focus:border-[var(--brand-red-secondary)]/40"
                   />
                 </div>
 
                 <div className="flex gap-2 overflow-x-auto">
                   <FilterButton
-                    active={
-                      filter === "all"
-                    }
-                    onClick={() =>
-                      setFilter("all")
-                    }
+                    active={filter === "all"}
+                    onClick={() => setFilter("all")}
                   >
-                    <Filter
-                      size={15}
-                    />
+                    <Filter size={15} />
                     All
                   </FilterButton>
 
                   <FilterButton
-                    active={
-                      filter ===
-                      "active"
-                    }
-                    onClick={() =>
-                      setFilter(
-                        "active"
-                      )
-                    }
+                    active={filter === "active"}
+                    onClick={() => setFilter("active")}
                   >
                     Active
                     <span className="text-[10px] opacity-60">
@@ -1988,15 +1662,8 @@ export default function EmployeeTasksPage() {
                   </FilterButton>
 
                   <FilterButton
-                    active={
-                      filter ===
-                      "review"
-                    }
-                    onClick={() =>
-                      setFilter(
-                        "review"
-                      )
-                    }
+                    active={filter === "review"}
+                    onClick={() => setFilter("review")}
                   >
                     Review
                     <span className="text-[10px] opacity-60">
@@ -2005,15 +1672,8 @@ export default function EmployeeTasksPage() {
                   </FilterButton>
 
                   <FilterButton
-                    active={
-                      filter ===
-                      "changes"
-                    }
-                    onClick={() =>
-                      setFilter(
-                        "changes"
-                      )
-                    }
+                    active={filter === "changes"}
+                    onClick={() => setFilter("changes")}
                   >
                     Changes
                     <span className="text-[10px] opacity-60">
@@ -2022,29 +1682,15 @@ export default function EmployeeTasksPage() {
                   </FilterButton>
 
                   <FilterButton
-                    active={
-                      filter ===
-                      "overdue"
-                    }
-                    onClick={() =>
-                      setFilter(
-                        "overdue"
-                      )
-                    }
+                    active={filter === "overdue"}
+                    onClick={() => setFilter("overdue")}
                   >
                     Overdue
                   </FilterButton>
 
                   <FilterButton
-                    active={
-                      filter ===
-                      "completed"
-                    }
-                    onClick={() =>
-                      setFilter(
-                        "completed"
-                      )
-                    }
+                    active={filter === "completed"}
+                    onClick={() => setFilter("completed")}
                   >
                     Completed
                   </FilterButton>
@@ -2054,343 +1700,225 @@ export default function EmployeeTasksPage() {
 
             {/* TASK LIST */}
 
-            <section className="rounded-3xl border border-white/[0.07] bg-white/[0.018] overflow-hidden">
-              <div className="p-5 lg:p-6 border-b border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <section className="rounded-3xl border border-[var(--brand-border)] bg-white overflow-hidden">
+              <div className="p-5 lg:p-6 border-b border-[var(--brand-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-semibold">
                     {filter === "all"
                       ? "All My Tasks"
-                      : filter ===
-                        "active"
-                      ? "Active Tasks"
-                      : filter ===
-                        "review"
-                      ? "Tasks Under Review"
-                      : filter ===
-                        "changes"
-                      ? "Changes Requested"
-                      : filter ===
-                        "overdue"
-                      ? "Overdue Tasks"
-                      : "Completed Tasks"}
+                      : filter === "active"
+                        ? "Active Tasks"
+                        : filter === "review"
+                          ? "Tasks Under Review"
+                          : filter === "changes"
+                            ? "Changes Requested"
+                            : filter === "overdue"
+                              ? "Overdue Tasks"
+                              : "Completed Tasks"}
                   </h3>
 
-                  <p className="text-sm text-white/35 mt-1">
+                  <p className="text-sm text-[var(--brand-medium-gray)] mt-1">
                     {filteredTasks.length}{" "}
-                    {filteredTasks.length ===
-                    1
-                      ? "task"
-                      : "tasks"}{" "}
-                    shown
+                    {filteredTasks.length === 1 ? "task" : "tasks"} shown
                   </p>
                 </div>
 
                 <button
-                  onClick={() =>
-                    window.location.reload()
-                  }
-                  className="w-10 h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:bg-white/[0.07]"
+                  onClick={() => window.location.reload()}
+                  className="w-10 h-10 rounded-xl border border-[var(--brand-border)] bg-white flex items-center justify-center hover:bg-[var(--brand-red-light)]"
                   title="Refresh"
                 >
-                  <RefreshCw
-                    size={17}
-                  />
+                  <RefreshCw size={17} />
                 </button>
               </div>
 
-              {filteredTasks.length ===
-              0 ? (
-                <EmptyTasks
-                  filter={filter}
-                  search={search}
-                />
+              {filteredTasks.length === 0 ? (
+                <EmptyTasks filter={filter} search={search} />
               ) : (
-                <div className="divide-y divide-white/[0.06]">
-                  {filteredTasks.map(
-                    (task, index) => {
-                      const status =
-                        statusConfig[
-                          normalize(
-                            task.status
-                          )
-                        ] ||
-                        statusConfig.todo;
+                <div className="divide-y divide-[var(--brand-border)]">
+                  {filteredTasks.map((task, index) => {
+                    const status =
+                      statusConfig[normalize(task.status)] || statusConfig.todo;
 
-                      const StatusIcon =
-                        status.icon;
+                    const StatusIcon = status.icon;
 
-                      const priority =
-                        priorityConfig[
-                          normalize(
-                            task.priority
-                          )
-                        ] ||
-                        priorityConfig.medium;
+                    const priority =
+                      priorityConfig[normalize(task.priority)] ||
+                      priorityConfig.medium;
 
-                      const overdue =
-                        isOverdue(task);
+                    const overdue = isOverdue(task);
 
-                      const days =
-                        getDaysRemaining(
-                          task
-                        );
+                    const days = getDaysRemaining(task);
 
-                      return (
-                        <motion.div
-                          key={task.id}
-                          initial={{
-                            opacity: 0,
-                            y: 8,
-                          }}
-                          animate={{
-                            opacity: 1,
-                            y: 0,
-                          }}
-                          transition={{
-                            delay:
-                              index *
-                              0.03,
-                          }}
-                          onClick={() =>
-                            openTask(
-                              task
-                            )
-                          }
-                          className="group cursor-pointer p-5 lg:p-6 hover:bg-violet-500/[0.025] transition-all"
-                        >
-                          <div className="flex items-start gap-4">
-                            {/* ICON */}
+                    return (
+                      <motion.div
+                        key={task.id}
+                        initial={{
+                          opacity: 0,
+                          y: 8,
+                        }}
+                        animate={{
+                          opacity: 1,
+                          y: 0,
+                        }}
+                        transition={{
+                          delay: index * 0.03,
+                        }}
+                        onClick={() => openTask(task)}
+                        className="group cursor-pointer p-5 lg:p-6 hover:bg-[var(--brand-red)]/[0.025] transition-all"
+                      >
+                        <div className="flex items-start gap-4">
+                          {/* ICON */}
 
-                            <div
-                              className={`h-12 w-12 shrink-0 rounded-2xl border flex items-center justify-center ${status.className}`}
-                            >
-                              <StatusIcon
-                                size={
-                                  19
-                                }
-                              />
-                            </div>
+                          <div
+                            className={`h-12 w-12 shrink-0 rounded-2xl border flex items-center justify-center ${status.className}`}
+                          >
+                            <StatusIcon size={19} />
+                          </div>
 
-                            {/* CONTENT */}
+                          {/* CONTENT */}
 
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <h4 className="text-base font-semibold truncate">
-                                      {task.title ||
-                                        "Untitled Task"}
-                                    </h4>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className="text-base font-semibold truncate">
+                                    {task.title || "Untitled Task"}
+                                  </h4>
 
-                                    <span
-                                      className={`text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-md border ${priority}`}
-                                    >
-                                      {task.priority ||
-                                        "Medium"}
-                                    </span>
-                                  </div>
-
-                                  <p className="text-sm text-white/35 mt-1 line-clamp-2">
-                                    {task.description ||
-                                      "No description provided."}
-                                  </p>
+                                  <span
+                                    className={`text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-md border ${priority}`}
+                                  >
+                                    {task.priority || "Medium"}
+                                  </span>
                                 </div>
 
-                                <span
-                                  className={`w-fit shrink-0 text-xs px-2.5 py-1.5 rounded-lg border ${status.className}`}
-                                >
-                                  {
-                                    status.label
-                                  }
-                                </span>
+                                <p className="text-sm text-[var(--brand-medium-gray)] mt-1 line-clamp-2">
+                                  {task.description ||
+                                    "No description provided."}
+                                </p>
                               </div>
 
-                              {/* META */}
-
-                              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 text-xs">
-                                <span className="flex items-center gap-1.5 text-white/35">
-                                  <FolderOpen
-                                    size={
-                                      13
-                                    }
-                                  />
-
-                                  {task.client ||
-                                    "Internal / Ant Media"}
-                                </span>
-
-                                {task.department && (
-                                  <span className="flex items-center gap-1.5 text-white/30">
-                                    <UserRound
-                                      size={
-                                        13
-                                      }
-                                    />
-
-                                    {task.department}
-                                  </span>
-                                )}
-
-                                {task.deadline && (
-                                  <span
-                                    className={`flex items-center gap-1.5 ${
-                                      overdue
-                                        ? "text-red-300"
-                                        : days !==
-                                            null &&
-                                          days <=
-                                            2
-                                        ? "text-amber-300"
-                                        : "text-white/30"
-                                    }`}
-                                  >
-                                    <CalendarDays
-                                      size={
-                                        13
-                                      }
-                                    />
-
-                                    {overdue
-                                      ? "Overdue"
-                                      : `Due ${formatDate(
-                                          task.deadline
-                                        )}`}
-                                  </span>
-                                )}
-
-                                {task.deadlineTime && (
-                                  <span className="flex items-center gap-1.5 text-white/25">
-                                    <Clock3
-                                      size={
-                                        13
-                                      }
-                                    />
-
-                                    {
-                                      task.deadlineTime
-                                    }
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* QUICK ACTION */}
-
-                              <div
-                                className="mt-4 flex flex-wrap gap-2"
-                                onClick={(
-                                  event
-                                ) =>
-                                  event.stopPropagation()
-                                }
+                              <span
+                                className={`w-fit shrink-0 text-xs px-2.5 py-1.5 rounded-lg border ${status.className}`}
                               >
-                                {normalize(
-                                  task.status
-                                ) ===
-                                  "todo" && (
-                                  <button
-                                    onClick={() =>
-                                      startTask(
-                                        task
-                                      )
-                                    }
-                                    disabled={
-                                      actionLoading ===
-                                      task.id
-                                    }
-                                    className="px-3 py-2 rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 text-xs font-semibold hover:brightness-110 transition disabled:opacity-50"
-                                  >
-                                    {actionLoading ===
-                                    task.id ? (
-                                      <Loader2
-                                        size={
-                                          14
-                                        }
-                                        className="animate-spin"
-                                      />
-                                    ) : (
-                                      <span className="flex items-center gap-1.5">
-                                        <Play
-                                          size={
-                                            13
-                                          }
-                                        />
-                                        Start Task
-                                      </span>
-                                    )}
-                                  </button>
-                                )}
-
-                                {isChangesRequested(
-                                  task.status
-                                ) && (
-                                  <button
-                                    onClick={() =>
-                                      continueAfterChanges(
-                                        task
-                                      )
-                                    }
-                                    disabled={
-                                      actionLoading ===
-                                      task.id
-                                    }
-                                    className="px-3 py-2 rounded-lg bg-gradient-to-r from-orange-600 to-violet-600 text-xs font-semibold hover:brightness-110 transition disabled:opacity-50"
-                                  >
-                                    <span className="flex items-center gap-1.5">
-                                      <RefreshCw
-                                        size={
-                                          13
-                                        }
-                                      />
-                                      Work on Changes
-                                    </span>
-                                  </button>
-                                )}
-
-                                {[
-                                  "in_progress",
-                                  "changes_requested",
-                                  "changes",
-                                ].includes(
-                                  normalize(
-                                    task.status
-                                  )
-                                ) && (
-                                  <button
-                                    onClick={() => {
-                                      setSelectedTask(
-                                        task
-                                      );
-                                      setSubmissionText(
-                                        ""
-                                      );
-                                      setShowSubmitModal(
-                                        true
-                                      );
-                                    }}
-                                    className="px-3 py-2 rounded-lg border border-violet-500/20 bg-violet-500/10 text-violet-300 text-xs font-semibold hover:bg-violet-500/15 transition"
-                                  >
-                                    <span className="flex items-center gap-1.5">
-                                      <Send
-                                        size={
-                                          13
-                                        }
-                                      />
-                                      Submit Work
-                                    </span>
-                                  </button>
-                                )}
-                              </div>
+                                {status.label}
+                              </span>
                             </div>
 
-                            <ChevronRight
-                              size={18}
-                              className="shrink-0 text-white/10 group-hover:text-violet-300 transition"
-                            />
+                            {/* META */}
+
+                            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 text-xs">
+                              <span className="flex items-center gap-1.5 text-[var(--brand-black)]">
+                                <FolderOpen size={13} />
+
+                                {task.client || "Internal / Ant Media"}
+                              </span>
+
+                              {task.department && (
+                                <span className="flex items-center gap-1.5 text-[var(--brand-black)]">
+                                  <UserRound size={13} />
+
+                                  {task.department}
+                                </span>
+                              )}
+
+                              {task.deadline && (
+                                <span
+                                  className={`flex items-center gap-1.5 ${
+                                    overdue
+                                      ? "text-red-700"
+                                      : days !== null && days <= 2
+                                        ? "text-amber-700"
+                                        : "text-[var(--brand-black)]"
+                                  }`}
+                                >
+                                  <CalendarDays size={13} />
+
+                                  {overdue
+                                    ? "Overdue"
+                                    : `Due ${formatDate(task.deadline)}`}
+                                </span>
+                              )}
+
+                              {task.deadlineTime && (
+                                <span className="flex items-center gap-1.5 text-[var(--brand-black)]">
+                                  <Clock3 size={13} />
+
+                                  {task.deadlineTime}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* QUICK ACTION */}
+
+                            <div
+                              className="mt-4 flex flex-wrap gap-2"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {normalize(task.status) === "todo" && (
+                                <button
+                                  onClick={() => startTask(task)}
+                                  disabled={actionLoading === task.id}
+                                  className="px-3 py-2 rounded-lg bg-[var(--brand-red)] text-xs font-semibold hover:brightness-110 transition disabled:opacity-50"
+                                >
+                                  {actionLoading === task.id ? (
+                                    <Loader2
+                                      size={14}
+                                      className="animate-spin"
+                                    />
+                                  ) : (
+                                    <span className="flex items-center gap-1.5">
+                                      <Play size={13} />
+                                      Start Task
+                                    </span>
+                                  )}
+                                </button>
+                              )}
+
+                              {isChangesRequested(task.status) && (
+                                <button
+                                  onClick={() => continueAfterChanges(task)}
+                                  disabled={actionLoading === task.id}
+                                  className="px-3 py-2 rounded-lg bg-[var(--brand-red)] text-xs font-semibold hover:brightness-110 transition disabled:opacity-50"
+                                >
+                                  <span className="flex items-center gap-1.5">
+                                    <RefreshCw size={13} />
+                                    Work on Changes
+                                  </span>
+                                </button>
+                              )}
+
+                              {[
+                                "in_progress",
+                                "changes_requested",
+                                "changes",
+                              ].includes(normalize(task.status)) && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedTask(task);
+                                    setSubmissionText("");
+                                    setShowSubmitModal(true);
+                                  }}
+                                  className="px-3 py-2 rounded-lg border border-[var(--brand-red-secondary)]/20 bg-[var(--brand-red)]/10 text-[var(--brand-red)] text-xs font-semibold hover:bg-[var(--brand-red)]/15 transition"
+                                >
+                                  <span className="flex items-center gap-1.5">
+                                    <Send size={13} />
+                                    Submit Work
+                                  </span>
+                                </button>
+                              )}
+                            </div>
                           </div>
-                        </motion.div>
-                      );
-                    }
-                  )}
+
+                          <ChevronRight
+                            size={18}
+                            className="shrink-0 text-[var(--brand-black)] group-hover:text-[var(--brand-red)] transition"
+                          />
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               )}
             </section>
@@ -2419,10 +1947,8 @@ export default function EmployeeTasksPage() {
 
             {/* FOOTER */}
 
-            <footer className="mt-10 pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row justify-between gap-3 text-xs text-white/25">
-              <span>
-                © 2026 The Ant Media • Internal Management System
-              </span>
+            <footer className="mt-10 pt-6 border-t border-[var(--brand-border)] flex flex-col sm:flex-row justify-between gap-3 text-xs text-[var(--brand-black)]">
+              <span>© 2026 The Ant Media • Internal Management System</span>
 
               <span className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -2435,766 +1961,630 @@ export default function EmployeeTasksPage() {
 
       {/* TASK DETAIL MODAL */}
 
-      {selectedTask &&
-        !showSubmitModal && (
+      {selectedTask && !showSubmitModal && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/75  flex items-center justify-center p-4"
+          onClick={() => setSelectedTask(null)}
+        >
           <div
-            className="fixed inset-0 z-[60] bg-black/75 backdrop-blur-md flex items-center justify-center p-4"
-            onClick={() =>
-              setSelectedTask(null)
-            }
+            className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl border border-[var(--brand-border)] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
+            onClick={(event) => event.stopPropagation()}
           >
-            <div
-              className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl border border-white/[0.1] bg-[#0c0c10] shadow-2xl"
-              onClick={(event) =>
-                event.stopPropagation()
-              }
-            >
-              {/* MODAL HEADER */}
+            {/* MODAL HEADER */}
 
-              <div className="p-6 border-b border-white/[0.07] flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-3">
-                    <span className="text-[10px] uppercase tracking-[0.2em] text-violet-300/70">
-                      Task details
-                    </span>
+            <div className="p-6 border-b border-[var(--brand-border)] flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--brand-red)]">
+                    Task details
+                  </span>
 
-                    <span
-                      className={`text-[10px] px-2.5 py-1 rounded-full border ${
-                        statusConfig[
-                          normalize(
-                            selectedTask.status
-                          )
-                        ]?.className ||
-                        statusConfig.todo
-                          .className
-                      }`}
-                    >
-                      {statusConfig[
-                        normalize(
-                          selectedTask.status
-                        )
-                      ]?.label ||
-                        "To Do"}
-                    </span>
-                  </div>
-
-                  <h2 className="text-2xl md:text-3xl font-bold">
-                    {selectedTask.title ||
-                      "Untitled Task"}
-                  </h2>
+                  <span
+                    className={`text-[10px] px-2.5 py-1 rounded-full border ${
+                      statusConfig[normalize(selectedTask.status)]?.className ||
+                      statusConfig.todo.className
+                    }`}
+                  >
+                    {statusConfig[normalize(selectedTask.status)]?.label ||
+                      "To Do"}
+                  </span>
                 </div>
 
-                <button
-                  onClick={() =>
-                    setSelectedTask(
-                      null
-                    )
-                  }
-                  className="w-10 h-10 shrink-0 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] flex items-center justify-center"
-                >
-                  <X size={18} />
-                </button>
+                <h2 className="text-2xl md:text-3xl font-bold">
+                  {selectedTask.title || "Untitled Task"}
+                </h2>
               </div>
 
-              {/* BODY */}
+              <button
+                onClick={() => setSelectedTask(null)}
+                className="w-10 h-10 shrink-0 rounded-xl bg-white hover:bg-[var(--brand-red-light)] flex items-center justify-center"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
-              <div className="p-6 space-y-6">
-                {/* DESCRIPTION */}
+            {/* BODY */}
 
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-white/25 mb-2">
-                    Description
-                  </p>
+            <div className="p-6 space-y-6">
+              {/* DESCRIPTION */}
 
-                  <p className="text-sm text-white/55 leading-7">
-                    {selectedTask.description ||
-                      "No description provided."}
-                  </p>
-                </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--brand-medium-gray)] mb-2">
+                  Description
+                </p>
 
-                {/* META GRID */}
+                <p className="text-sm text-[var(--brand-medium-gray)] leading-7">
+                  {selectedTask.description || "No description provided."}
+                </p>
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <DetailBox
-                    icon={
-                      <FolderOpen
-                        size={16}
-                      />
-                    }
-                    label="Client"
-                    value={
-                      selectedTask.client ||
-                      "Internal / Ant Media"
-                    }
-                  />
+              {/* META GRID */}
 
-                  <DetailBox
-                    icon={
-                      <UserRound
-                        size={16}
-                      />
-                    }
-                    label="Department"
-                    value={
-                      selectedTask.department ||
-                      "Not specified"
-                    }
-                  />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <DetailBox
+                  icon={<FolderOpen size={16} />}
+                  label="Client"
+                  value={selectedTask.client || "Internal / Ant Media"}
+                />
 
-                  <DetailBox
-                    icon={
-                      <CalendarDays
-                        size={16}
-                      />
-                    }
-                    label="Start date"
-                    value={
-                      selectedTask.startDate
-                        ? formatDate(
-                            selectedTask.startDate
-                          )
-                        : "Not specified"
-                    }
-                  />
+                <DetailBox
+                  icon={<UserRound size={16} />}
+                  label="Department"
+                  value={selectedTask.department || "Not specified"}
+                />
 
-                  <DetailBox
-                    icon={
-                      <Clock3
-                        size={16}
-                      />
-                    }
-                    label="Deadline"
-                    value={
-                      selectedTask.deadline
-                        ? `${formatDate(
-                            selectedTask.deadline
-                          )}${
-                            selectedTask.deadlineTime
-                              ? ` • ${selectedTask.deadlineTime}`
-                              : ""
-                          }`
-                        : "No deadline"
-                    }
-                  />
-                </div>
+                <DetailBox
+                  icon={<CalendarDays size={16} />}
+                  label="Start date"
+                  value={
+                    selectedTask.startDate
+                      ? formatDate(selectedTask.startDate)
+                      : "Not specified"
+                  }
+                />
 
-                {selectedTask.assignmentType === "team" && (
-                  <div className="rounded-2xl border border-blue-500/15 bg-blue-500/[0.04] p-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-wider text-blue-300/75 font-semibold">
-                          Shared Team Task
-                        </p>
-                        <p className="mt-1 text-xs text-white/35">
-                          {selectedTask.submitterMode === "anybody"
-                            ? "Anybody from this team can submit. The first successful submission completes the task."
-                            : `Submitter: ${selectedTask.submitterName || "Selected employee"}`}
-                        </p>
-                      </div>
-                      {selectedTask.teamLeadName && (
-                        <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[10px] font-semibold text-amber-200">
-                          TL: {selectedTask.teamLeadName}
-                        </span>
-                      )}
+                <DetailBox
+                  icon={<Clock3 size={16} />}
+                  label="Deadline"
+                  value={
+                    selectedTask.deadline
+                      ? `${formatDate(selectedTask.deadline)}${
+                          selectedTask.deadlineTime
+                            ? ` • ${selectedTask.deadlineTime}`
+                            : ""
+                        }`
+                      : "No deadline"
+                  }
+                />
+              </div>
+
+              {selectedTask.assignmentType === "team" && (
+                <div className="rounded-2xl border border-[var(--brand-red-secondary)]/15 bg-[var(--brand-red)]/[0.04] p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider text-[var(--brand-red)] font-semibold">
+                        Shared Team Task
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
+                        {selectedTask.submitterMode === "anybody"
+                          ? "Anybody from this team can submit. The first successful submission completes the task."
+                          : `Submitter: ${selectedTask.submitterName || "Selected employee"}`}
+                      </p>
                     </div>
-
-                    <div className="mt-4 space-y-2">
-                      {(selectedTask.teamMembers || []).map((member) => (
-                        <div
-                          key={member.id}
-                          className="rounded-xl border border-white/[0.06] bg-black/10 p-3"
-                        >
-                          <p className="text-sm font-semibold text-white/75">
-                            {member.name || member.email || "Team Member"}
-                            {member.isTeamLead ? " · Team Lead (TL)" : ""}
-                          </p>
-                          <p className="mt-1 text-[10px] text-white/30">
-                            Dep: {member.department || "Not set"} · Role: {member.role || "Not set"}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-
-                    {!isAllowedToSubmit(selectedTask) &&
-                      !isCompleted(selectedTask.status) && (
-                        <div className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-xs text-white/35">
-                          You are a team member on this task, but the Founder has not selected you as the submitter.
-                        </div>
-                      )}
+                    {selectedTask.teamLeadName && (
+                      <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-[10px] font-semibold text-amber-700">
+                        TL: {selectedTask.teamLeadName}
+                      </span>
+                    )}
                   </div>
-                )}
 
-                {/* GOOGLE DRIVE REFERENCE */}
-
-                {selectedTask.referenceDriveUrl && (
-                  <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.04] p-5">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 text-emerald-300">
-                          <FolderOpen size={17} />
-                          <span className="text-sm font-semibold">Task Reference</span>
-                        </div>
-                        <p className="mt-2 text-xs leading-5 text-white/35">
-                          Reference files provided by the Founder are stored in Google Drive.
+                  <div className="mt-4 space-y-2">
+                    {(selectedTask.teamMembers || []).map((member) => (
+                      <div
+                        key={member.id}
+                        className="rounded-xl border border-[var(--brand-border)] bg-white p-3"
+                      >
+                        <p className="text-sm font-semibold text-[var(--brand-dark-gray)]">
+                          {member.name || member.email || "Team Member"}
+                          {member.isTeamLead ? " · Team Lead (TL)" : ""}
+                        </p>
+                        <p className="mt-1 text-[10px] text-[var(--brand-medium-gray)]">
+                          Dep: {member.department || "Not set"} · Role:{" "}
+                          {member.role || "Not set"}
                         </p>
                       </div>
+                    ))}
+                  </div>
 
+                  {!isAllowedToSubmit(selectedTask) &&
+                    !isCompleted(selectedTask.status) && (
+                      <div className="mt-4 rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3 text-xs text-[var(--brand-black)]">
+                        You are a team member on this task, but the Founder has
+                        not selected you as the submitter.
+                      </div>
+                    )}
+                </div>
+              )}
+
+              {/* GOOGLE DRIVE REFERENCE */}
+
+              {selectedTask.referenceDriveUrl && (
+                <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.04] p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-emerald-700">
+                        <FolderOpen size={17} />
+                        <span className="text-sm font-semibold">
+                          Task Reference
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-[var(--brand-medium-gray)]">
+                        Reference files provided by the Founder are stored in
+                        Google Drive.
+                      </p>
+                    </div>
+
+                    <a
+                      href={selectedTask.referenceDriveUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-[var(--brand-black)] transition hover:bg-emerald-500"
+                    >
+                      <span className="flex items-center gap-2">
+                        <FolderOpen size={15} />
+                        Open Drive
+                      </span>
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {selectedTask.referenceDriveUrl && selectedTask.status && (
+                <div className="rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3 text-xs text-[var(--brand-black)]">
+                  Make sure your completed files are uploaded to your designated{" "}
+                  <span className="text-[var(--brand-black)]">
+                    Task Submission
+                  </span>{" "}
+                  folder before submitting the link below.
+                </div>
+              )}
+
+              {/* FEEDBACK */}
+
+              {(selectedTask.feedback || selectedTask.reviewComment) && (
+                <div className="rounded-2xl border border-orange-500/15 bg-orange-500/[0.04] p-5">
+                  <div className="flex items-center gap-2 text-orange-700 mb-3">
+                    <MessageSquare size={17} />
+
+                    <span className="font-semibold text-sm">
+                      Founder feedback
+                    </span>
+                  </div>
+
+                  <p className="text-sm text-[var(--brand-medium-gray)] leading-6">
+                    {selectedTask.feedback || selectedTask.reviewComment}
+                  </p>
+                </div>
+              )}
+
+              {/* SUBMISSION */}
+
+              {selectedTask.submissionUrl && (
+                <div className="rounded-2xl border border-[var(--brand-red-secondary)]/15 bg-[var(--brand-red)]/[0.04] p-5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold">Latest submission</p>
+
+                      <p className="text-xs text-[var(--brand-medium-gray)] mt-1">
+                        {selectedTask.submissionName || "Submitted file"}
+                      </p>
+
+                      {selectedTask.submissionAt && (
+                        <p className="text-[11px] text-[var(--brand-medium-gray)] mt-1">
+                          {formatDateTime(selectedTask.submissionAt)}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
                       <a
-                        href={selectedTask.referenceDriveUrl}
+                        href={selectedTask.submissionUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500"
+                        className="px-4 py-2.5 rounded-xl bg-white hover:bg-[var(--brand-red-light)] text-sm flex items-center gap-2"
                       >
-                        <span className="flex items-center gap-2">
-                          <FolderOpen size={15} />
-                          Open Drive
-                        </span>
+                        <Download size={15} />
+                        Open
                       </a>
-                    </div>
-                  </div>
-                )}
 
-                {selectedTask.referenceDriveUrl && selectedTask.status && (
-                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-xs text-white/30">
-                    Make sure your completed files are uploaded to your designated <span className="text-white/55">Task Submission</span> folder before submitting the link below.
-                  </div>
-                )}
-
-                {/* FEEDBACK */}
-
-                {(selectedTask.feedback ||
-                  selectedTask.reviewComment) && (
-                  <div className="rounded-2xl border border-orange-500/15 bg-orange-500/[0.04] p-5">
-                    <div className="flex items-center gap-2 text-orange-300 mb-3">
-                      <MessageSquare
-                        size={17}
-                      />
-
-                      <span className="font-semibold text-sm">
-                        Founder feedback
-                      </span>
-                    </div>
-
-                    <p className="text-sm text-white/55 leading-6">
-                      {selectedTask.feedback ||
-                        selectedTask.reviewComment}
-                    </p>
-                  </div>
-                )}
-
-                {/* SUBMISSION */}
-
-                {selectedTask.submissionUrl && (
-                  <div className="rounded-2xl border border-violet-500/15 bg-violet-500/[0.04] p-5">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-semibold">
-                          Latest submission
-                        </p>
-
-                        <p className="text-xs text-white/30 mt-1">
-                          {selectedTask.submissionName ||
-                            "Submitted file"}
-                        </p>
-
-                        {selectedTask.submissionAt && (
-                          <p className="text-[11px] text-white/20 mt-1">
-                            {formatDateTime(
-                              selectedTask.submissionAt
-                            )}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        <a
-                          href={
-                            selectedTask.submissionUrl
-                          }
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-sm flex items-center gap-2"
+                      {["submitted", "review"].includes(
+                        normalize(selectedTask.status),
+                      ) && (
+                        <button
+                          type="button"
+                          onClick={() => openEditSubmission(selectedTask)}
+                          className="px-4 py-2.5 rounded-xl border border-[var(--brand-red-secondary)]/20 bg-[var(--brand-red)]/10 text-[var(--brand-red)] hover:bg-[var(--brand-red)]/15 text-sm flex items-center gap-2"
                         >
-                          <Download
-                            size={15}
-                          />
-                          Open
-                        </a>
-
-                        {["submitted", "review"].includes(
-                          normalize(selectedTask.status)
-                        ) && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openEditSubmission(selectedTask)
-                            }
-                            className="px-4 py-2.5 rounded-xl border border-violet-500/20 bg-violet-500/10 text-violet-300 hover:bg-violet-500/15 text-sm flex items-center gap-2"
-                          >
-                            <Pencil size={15} />
-                            Edit Submission
-                          </button>
-                        )}
-                      </div>
+                          <Pencil size={15} />
+                          Edit Submission
+                        </button>
+                      )}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* ACTIONS */}
+
+              <div className="flex flex-wrap gap-3 pt-2">
+                {normalize(selectedTask.status) === "todo" && (
+                  <button
+                    onClick={() => startTask(selectedTask)}
+                    disabled={actionLoading === selectedTask.id}
+                    className="flex-1 min-w-[180px] py-3 rounded-xl bg-[var(--brand-red)] font-semibold text-sm flex items-center justify-center gap-2"
+                  >
+                    {actionLoading === selectedTask.id ? (
+                      <Loader2 size={17} className="animate-spin" />
+                    ) : (
+                      <>
+                        <Play size={16} />
+                        Start Task
+                      </>
+                    )}
+                  </button>
                 )}
 
-                {/* ACTIONS */}
+                {isChangesRequested(selectedTask.status) && (
+                  <button
+                    onClick={() => continueAfterChanges(selectedTask)}
+                    className="flex-1 min-w-[180px] py-3 rounded-xl bg-[var(--brand-red)] font-semibold text-sm flex items-center justify-center gap-2"
+                  >
+                    <RefreshCw size={16} />
+                    Work on Changes
+                  </button>
+                )}
 
-                <div className="flex flex-wrap gap-3 pt-2">
-                  {normalize(
-                    selectedTask.status
-                  ) === "todo" && (
-                    <button
-                      onClick={() =>
-                        startTask(
-                          selectedTask
-                        )
-                      }
-                      disabled={
-                        actionLoading ===
-                        selectedTask.id
-                      }
-                      className="flex-1 min-w-[180px] py-3 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 font-semibold text-sm flex items-center justify-center gap-2"
-                    >
-                      {actionLoading ===
-                      selectedTask.id ? (
-                        <Loader2
-                          size={17}
-                          className="animate-spin"
-                        />
-                      ) : (
-                        <>
-                          <Play
-                            size={16}
-                          />
-                          Start Task
-                        </>
-                      )}
-                    </button>
-                  )}
-
-                  {isChangesRequested(
-                    selectedTask.status
-                  ) && (
-                    <button
-                      onClick={() =>
-                        continueAfterChanges(
-                          selectedTask
-                        )
-                      }
-                      className="flex-1 min-w-[180px] py-3 rounded-xl bg-gradient-to-r from-orange-600 to-violet-600 font-semibold text-sm flex items-center justify-center gap-2"
-                    >
-                      <RefreshCw
-                        size={16}
-                      />
-                      Work on Changes
-                    </button>
-                  )}
-
-                  {[
-                    "in_progress",
-                    "changes_requested",
-                    "changes",
-                  ].includes(
-                    normalize(
-                      selectedTask.status
-                    )
-                  ) &&
-                    isAllowedToSubmit(selectedTask) && (
+                {["in_progress", "changes_requested", "changes"].includes(
+                  normalize(selectedTask.status),
+                ) &&
+                  isAllowedToSubmit(selectedTask) && (
                     <button
                       onClick={() => {
-                        setSubmissionText(
-                          ""
-                        );
-                        setShowSubmitModal(
-                          true
-                        );
+                        setSubmissionText("");
+                        setShowSubmitModal(true);
                       }}
-                      className="flex-1 min-w-[180px] py-3 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 font-semibold text-sm flex items-center justify-center gap-2"
+                      className="flex-1 min-w-[180px] py-3 rounded-xl bg-[var(--brand-red)] font-semibold text-sm flex items-center justify-center gap-2"
                     >
-                      <Send
-                        size={16}
-                      />
+                      <Send size={16} />
                       Submit Work
                     </button>
                   )}
 
-                  {normalize(selectedTask.status) === "approved" && (
-                    <button
-                      onClick={() =>
-                        markTaskCompleted(selectedTask)
-                      }
-                      disabled={
-                        actionLoading ===
-                        selectedTask.id
-                      }
-                      className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {actionLoading ===
-                      selectedTask.id ? (
-                        <Loader2
-                          size={17}
-                          className="animate-spin"
-                        />
-                      ) : (
-                        <CheckCircle2
-                          size={17}
-                        />
-                      )}
-                      Mark Task Completed
-                    </button>
-                  )}
+                {normalize(selectedTask.status) === "approved" && (
+                  <button
+                    onClick={() => markTaskCompleted(selectedTask)}
+                    disabled={actionLoading === selectedTask.id}
+                    className="w-full py-3 rounded-xl bg-emerald-700 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {actionLoading === selectedTask.id ? (
+                      <Loader2 size={17} className="animate-spin" />
+                    ) : (
+                      <CheckCircle2 size={17} />
+                    )}
+                    Mark Task Completed
+                  </button>
+                )}
 
-                  {!isCompleted(selectedTask.status) && selectedTask.deleteRequestStatus === "pending" && (
-                    <div className="w-full rounded-xl border border-orange-500/20 bg-orange-500/[0.05] px-4 py-3 text-sm text-orange-300 flex items-center justify-center gap-2">
+                {!isCompleted(selectedTask.status) &&
+                  selectedTask.deleteRequestStatus === "pending" && (
+                    <div className="w-full rounded-xl border border-orange-500/20 bg-orange-500/[0.05] px-4 py-3 text-sm text-orange-700 flex items-center justify-center gap-2">
                       <Clock3 size={17} />
                       Delete request sent — waiting for Founder approval.
                     </div>
                   )}
 
-                  {!isCompleted(selectedTask.status) &&
-                    selectedTask.deleteRequestStatus === "approved" &&
-                    selectedTask.deleteRequestedBy === user?.uid && (
-                      <button
-                        onClick={() => deleteApprovedTask(selectedTask)}
-                        disabled={actionLoading === selectedTask.id}
-                        className="flex-1 min-w-[180px] py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        <Check size={16} />
-                        Delete Task
-                      </button>
-                    )}
-
-                  {!isCompleted(selectedTask.status) &&
-                    selectedTask.deleteRequestStatus !== "pending" &&
-                    selectedTask.deleteRequestStatus !== "approved" && (
-                      <button
-                        onClick={() => requestDeleteTask(selectedTask)}
-                        disabled={actionLoading === selectedTask.id}
-                        className="flex-1 min-w-[180px] py-3 rounded-xl border border-red-500/20 bg-red-500/[0.07] text-red-300 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        <X size={16} />
-                        {selectedTask.deleteRequestStatus === "rejected"
-                          ? "Request Delete Again"
-                          : "Request Delete"}
-                      </button>
-                    )}
-
-                  {selectedTask.deleteRequestStatus === "rejected" && (
-                    <div className="w-full rounded-xl border border-red-500/20 bg-red-500/[0.05] px-4 py-3">
-                      <p className="text-[11px] uppercase tracking-wider font-semibold text-red-300/80">
-                        Delete permission rejected
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-white/55">
-                        {selectedTask.deleteReviewMessage ||
-                          "The Founder rejected the delete request. Please continue working on this task."}
-                      </p>
-                    </div>
+                {!isCompleted(selectedTask.status) &&
+                  selectedTask.deleteRequestStatus === "approved" &&
+                  selectedTask.deleteRequestedBy === user?.uid && (
+                    <button
+                      onClick={() => deleteApprovedTask(selectedTask)}
+                      disabled={actionLoading === selectedTask.id}
+                      className="flex-1 min-w-[180px] py-3 rounded-xl bg-emerald-700 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <Check size={16} />
+                      Delete Task
+                    </button>
                   )}
 
-                  {isCompleted(selectedTask.status) && (
-                    <>
-                      <button
-                        onClick={() => deleteCompletedTask(selectedTask)}
-                        disabled={actionLoading === selectedTask.id}
-                        className="flex-1 min-w-[180px] py-3 rounded-xl border border-white/10 bg-white/[0.04] text-white/60 font-semibold text-sm flex items-center justify-center gap-2 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
-                      >
-                        <X size={16} />
-                        Delete from History
-                      </button>
+                {!isCompleted(selectedTask.status) &&
+                  selectedTask.deleteRequestStatus !== "pending" &&
+                  selectedTask.deleteRequestStatus !== "approved" && (
+                    <button
+                      onClick={() => requestDeleteTask(selectedTask)}
+                      disabled={actionLoading === selectedTask.id}
+                      className="flex-1 min-w-[180px] py-3 rounded-xl border border-red-500/20 bg-red-500/[0.07] text-red-700 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <X size={16} />
+                      {selectedTask.deleteRequestStatus === "rejected"
+                        ? "Request Delete Again"
+                        : "Request Delete"}
+                    </button>
+                  )}
 
-                    <div className="w-full rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] px-4 py-3 text-sm text-emerald-300 flex items-center justify-center gap-2">
-                      <CheckCircle2
-                        size={17}
-                      />
+                {selectedTask.deleteRequestStatus === "rejected" && (
+                  <div className="w-full rounded-xl border border-red-500/20 bg-red-500/[0.05] px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-wider font-semibold text-red-700/80">
+                      Delete permission rejected
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-[var(--brand-medium-gray)]">
+                      {selectedTask.deleteReviewMessage ||
+                        "The Founder rejected the delete request. Please continue working on this task."}
+                    </p>
+                  </div>
+                )}
+
+                {isCompleted(selectedTask.status) && (
+                  <>
+                    <button
+                      onClick={() => deleteCompletedTask(selectedTask)}
+                      disabled={actionLoading === selectedTask.id}
+                      className="flex-1 min-w-[180px] py-3 rounded-xl border border-[var(--brand-border)] bg-white text-[var(--brand-black)] font-semibold text-sm flex items-center justify-center gap-2 hover:bg-red-500/10 hover:text-red-700 disabled:opacity-50"
+                    >
+                      <X size={16} />
+                      Delete from History
+                    </button>
+
+                    <div className="w-full rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] px-4 py-3 text-sm text-emerald-700 flex items-center justify-center gap-2">
+                      <CheckCircle2 size={17} />
                       This task has been completed.
                     </div>
-                    </>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
       {/* EDIT SUBMISSION MODAL */}
 
-      {selectedTask &&
-        showEditSubmissionModal && (
+      {selectedTask && showEditSubmissionModal && (
+        <div
+          className="fixed inset-0 z-[75] bg-black/80  flex items-center justify-center p-4"
+          onClick={() => setShowEditSubmissionModal(false)}
+        >
           <div
-            className="fixed inset-0 z-[75] bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-            onClick={() =>
-              setShowEditSubmissionModal(false)
-            }
+            className="w-full max-w-xl rounded-3xl border border-[var(--brand-border)] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
           >
-            <div
-              className="w-full max-w-xl rounded-3xl border border-white/[0.1] bg-[#0c0c10] shadow-2xl overflow-hidden"
-              onClick={(event) =>
-                event.stopPropagation()
-              }
-            >
-              <div className="p-6 border-b border-white/[0.07] flex items-start justify-between">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-violet-300/70">
-                    Correct your submission
-                  </p>
+            <div className="p-6 border-b border-[var(--brand-border)] flex items-start justify-between">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-[var(--brand-red)]">
+                  Correct your submission
+                </p>
 
-                  <h2 className="text-xl font-bold mt-1">
-                    Edit Submission
-                  </h2>
+                <h2 className="text-xl font-bold mt-1">Edit Submission</h2>
 
-                  <p className="text-xs text-white/30 mt-2">
-                    If you pasted the wrong Google Drive document or folder,
-                    replace the link here. Your task and review status remain unchanged.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowEditSubmissionModal(false)
-                  }
-                  className="w-9 h-9 rounded-xl bg-white/[0.04] flex items-center justify-center"
-                >
-                  <X size={17} />
-                </button>
+                <p className="text-xs text-[var(--brand-medium-gray)] mt-2">
+                  If you pasted the wrong Google Drive document or folder,
+                  replace the link here. Your task and review status remain
+                  unchanged.
+                </p>
               </div>
 
-              <div className="p-6 space-y-5">
-                <div>
-                  <label className="text-xs text-white/40">
-                    Correct Google Drive link{" "}
-                    <span className="text-violet-300">*</span>
-                  </label>
+              <button
+                type="button"
+                onClick={() => setShowEditSubmissionModal(false)}
+                className="w-9 h-9 rounded-xl bg-white flex items-center justify-center"
+              >
+                <X size={17} />
+              </button>
+            </div>
 
-                  <input
-                    type="url"
-                    value={editingSubmissionUrl}
-                    onChange={(event) =>
-                      setEditingSubmissionUrl(
-                        event.target.value
-                      )
-                    }
-                    placeholder="https://drive.google.com/drive/folders/..."
-                    className="mt-2 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none placeholder:text-white/20 focus:border-violet-500/40"
-                  />
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="text-xs text-[var(--brand-black)]">
+                  Correct Google Drive link{" "}
+                  <span className="text-[var(--brand-red)]">*</span>
+                </label>
 
-                  <p className="mt-2 text-[11px] text-white/25">
-                    Accepted: Google Drive folders/files and Google Docs links.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="text-xs text-white/40">
-                    Submission note{" "}
-                    <span className="text-violet-300">*</span>
-                  </label>
-
-                  <textarea
-                    value={editingSubmissionText}
-                    onChange={(event) =>
-                      setEditingSubmissionText(
-                        event.target.value
-                      )
-                    }
-                    rows={5}
-                    placeholder="Explain what you submitted or what was corrected..."
-                    className="mt-2 w-full rounded-2xl border border-white/[0.07] bg-black/20 px-4 py-3 text-sm outline-none resize-none placeholder:text-white/20 focus:border-violet-500/40"
-                  />
-                </div>
-
-                <div className="rounded-2xl border border-blue-500/10 bg-blue-500/[0.03] p-4 flex gap-3">
-                  <Bell
-                    size={17}
-                    className="text-blue-300 shrink-0 mt-0.5"
-                  />
-                  <p className="text-xs text-white/40 leading-5">
-                    The Founder will receive a notification that your submission
-                    link was updated.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={updateSubmission}
-                  disabled={
-                    actionLoading === selectedTask.id
+                <input
+                  type="url"
+                  value={editingSubmissionUrl}
+                  onChange={(event) =>
+                    setEditingSubmissionUrl(event.target.value)
                   }
-                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 font-semibold text-sm flex items-center justify-center gap-2 hover:brightness-110 disabled:opacity-50"
-                >
-                  {actionLoading === selectedTask.id ? (
-                    <>
-                      <Loader2
-                        size={17}
-                        className="animate-spin"
-                      />
-                      Updating...
-                    </>
-                  ) : (
-                    <>
-                      <Pencil size={17} />
-                      Update Submission
-                    </>
-                  )}
-                </button>
+                  placeholder="https://drive.google.com/drive/folders/..."
+                  className="mt-2 h-12 w-full rounded-xl border border-[var(--brand-border)] bg-white px-4 text-sm text-[var(--brand-black)] outline-none placeholder:text-[var(--brand-black)] focus:border-[var(--brand-red-secondary)]/40"
+                />
+
+                <p className="mt-2 text-[11px] text-[var(--brand-medium-gray)]">
+                  Accepted: Google Drive folders/files and Google Docs links.
+                </p>
               </div>
+
+              <div>
+                <label className="text-xs text-[var(--brand-black)]">
+                  Submission note{" "}
+                  <span className="text-[var(--brand-red)]">*</span>
+                </label>
+
+                <textarea
+                  value={editingSubmissionText}
+                  onChange={(event) =>
+                    setEditingSubmissionText(event.target.value)
+                  }
+                  rows={5}
+                  placeholder="Explain what you submitted or what was corrected..."
+                  className="mt-2 w-full rounded-2xl border border-[var(--brand-border)] bg-white px-4 py-3 text-sm outline-none resize-none placeholder:text-[var(--brand-black)] focus:border-[var(--brand-red-secondary)]/40"
+                />
+              </div>
+
+              <div className="rounded-2xl border border-[var(--brand-red-secondary)]/10 bg-[var(--brand-red)]/[0.03] p-4 flex gap-3">
+                <Bell
+                  size={17}
+                  className="text-[var(--brand-red)] shrink-0 mt-0.5"
+                />
+                <p className="text-xs text-[var(--brand-medium-gray)] leading-5">
+                  The Founder will receive a notification that your submission
+                  link was updated.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={updateSubmission}
+                disabled={actionLoading === selectedTask.id}
+                className="w-full py-3.5 rounded-xl bg-[var(--brand-red)] font-semibold text-sm flex items-center justify-center gap-2 hover:brightness-110 disabled:opacity-50"
+              >
+                {actionLoading === selectedTask.id ? (
+                  <>
+                    <Loader2 size={17} className="animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <Pencil size={17} />
+                    Update Submission
+                  </>
+                )}
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
       {/* SUBMIT MODAL */}
 
-      {selectedTask &&
-        showSubmitModal && (
+      {selectedTask && showSubmitModal && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/80  flex items-center justify-center p-4"
+          onClick={() => setShowSubmitModal(false)}
+        >
           <div
-            className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-            onClick={() =>
-              setShowSubmitModal(false)
-            }
+            className="w-full max-w-xl rounded-3xl border border-[var(--brand-border)] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
           >
-            <div
-              className="w-full max-w-xl rounded-3xl border border-white/[0.1] bg-[#0c0c10] shadow-2xl overflow-hidden"
-              onClick={(event) =>
-                event.stopPropagation()
-              }
-            >
-              <div className="p-6 border-b border-white/[0.07] flex items-start justify-between">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-violet-300/70">
-                    Submit completed work
-                  </p>
+            <div className="p-6 border-b border-[var(--brand-border)] flex items-start justify-between">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-[var(--brand-red)]">
+                  Submit completed work
+                </p>
 
-                  <h2 className="text-xl font-bold mt-1">
-                    {selectedTask.title ||
-                      "Task"}
-                  </h2>
+                <h2 className="text-xl font-bold mt-1">
+                  {selectedTask.title || "Task"}
+                </h2>
 
-                  <p className="text-xs text-white/30 mt-2">
-                    {selectedTask.assignmentType === "team"
-                      ? "Your submission will be shared with the Founder and every selected team member."
-                      : "Your submission will be sent to the Founder for review."}
-                  </p>
-                </div>
-
-                <button
-                  onClick={() =>
-                    setShowSubmitModal(
-                      false
-                    )
-                  }
-                  className="w-9 h-9 rounded-xl bg-white/[0.04] flex items-center justify-center"
-                >
-                  <X size={17} />
-                </button>
+                <p className="text-xs text-[var(--brand-medium-gray)] mt-2">
+                  {selectedTask.assignmentType === "team"
+                    ? "Your submission will be shared with the Founder and every selected team member."
+                    : "Your submission will be sent to the Founder for review."}
+                </p>
               </div>
 
-              <div className="p-6 space-y-5">
-                {/* GOOGLE DRIVE SUBMISSION */}
+              <button
+                onClick={() => setShowSubmitModal(false)}
+                className="w-9 h-9 rounded-xl bg-white flex items-center justify-center"
+              >
+                <X size={17} />
+              </button>
+            </div>
 
-                <div>
-                  <label className="text-xs text-white/40">
-                    Google Drive submission <span className="text-violet-300">*</span>
-                  </label>
+            <div className="p-6 space-y-5">
+              {/* GOOGLE DRIVE SUBMISSION */}
 
-                  <div className="mt-2 rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.03] p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-300">
-                        <FolderOpen size={19} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold">Upload your completed work to Google Drive</p>
-                        <p className="mt-1 text-xs leading-5 text-white/30">
-                          Put all completed files or videos in your Task Submission folder, share the folder with the Founder, then paste the link here.
-                        </p>
-                      </div>
+              <div>
+                <label className="text-xs text-[var(--brand-black)]">
+                  Google Drive submission{" "}
+                  <span className="text-[var(--brand-red)]">*</span>
+                </label>
+
+                <div className="mt-2 rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.03] p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-700">
+                      <FolderOpen size={19} />
                     </div>
-
-                    <input
-                      type="url"
-                      value={submissionDriveUrl}
-                      onChange={(event) => setSubmissionDriveUrl(event.target.value)}
-                      placeholder="https://drive.google.com/drive/folders/..."
-                      className="mt-4 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none placeholder:text-white/20 focus:border-emerald-500/40"
-                    />
-
-                    <p className="mt-2 text-[11px] leading-5 text-white/25">
-                      Accepted: Google Drive folders/files and Google Docs links.
-                    </p>
+                    <div>
+                      <p className="text-sm font-semibold">
+                        Upload your completed work to Google Drive
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--brand-medium-gray)]">
+                        Put all completed files or videos in your Task
+                        Submission folder, share the folder with the Founder,
+                        then paste the link here.
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                {/* NOTE */}
-
-                <div>
-                  <label className="text-xs text-white/40">
-                    Submission note
-                  </label>
-
-                  <textarea
-                    value={
-                      submissionText
-                    }
+                  <input
+                    type="url"
+                    value={submissionDriveUrl}
                     onChange={(event) =>
-                      setSubmissionText(
-                        event.target
-                          .value
-                      )
+                      setSubmissionDriveUrl(event.target.value)
                     }
-                    rows={5}
-                    placeholder="Tell the Founder what you completed, what was changed, or anything they should know..."
-                    className="mt-2 w-full rounded-2xl border border-white/[0.07] bg-black/20 px-4 py-3 text-sm outline-none resize-none placeholder:text-white/20 focus:border-violet-500/40"
-                  />
-                </div>
-
-                {/* NOTICE */}
-
-                <div className="rounded-2xl border border-blue-500/10 bg-blue-500/[0.03] p-4 flex gap-3">
-                  <Bell
-                    size={17}
-                    className="text-blue-300 shrink-0 mt-0.5"
+                    placeholder="https://drive.google.com/drive/folders/..."
+                    className="mt-4 h-12 w-full rounded-xl border border-[var(--brand-border)] bg-white px-4 text-sm text-[var(--brand-black)] outline-none placeholder:text-[var(--brand-black)] focus:border-emerald-500/40"
                   />
 
-                  <p className="text-xs text-white/40 leading-5">
-                    The Founder will receive a real-time notification with your Google Drive submission link.
+                  <p className="mt-2 text-[11px] leading-5 text-[var(--brand-medium-gray)]">
+                    Accepted: Google Drive folders/files and Google Docs links.
                   </p>
                 </div>
-
-                {/* ACTION */}
-
-                <button
-                  onClick={
-                    submitTask
-                  }
-                  disabled={
-                    actionLoading ===
-                    selectedTask.id
-                  }
-                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 font-semibold text-sm flex items-center justify-center gap-2 hover:brightness-110 disabled:opacity-50"
-                >
-                  {actionLoading ===
-                  selectedTask.id ? (
-                    <>
-                      <Loader2
-                        size={17}
-                        className="animate-spin"
-                      />
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <Send
-                        size={17}
-                      />
-                      Submit to Founder
-                    </>
-                  )}
-                </button>
               </div>
+
+              {/* NOTE */}
+
+              <div>
+                <label className="text-xs text-[var(--brand-black)]">
+                  Submission note
+                </label>
+
+                <textarea
+                  value={submissionText}
+                  onChange={(event) => setSubmissionText(event.target.value)}
+                  rows={5}
+                  placeholder="Tell the Founder what you completed, what was changed, or anything they should know..."
+                  className="mt-2 w-full rounded-2xl border border-[var(--brand-border)] bg-white px-4 py-3 text-sm outline-none resize-none placeholder:text-[var(--brand-black)] focus:border-[var(--brand-red-secondary)]/40"
+                />
+              </div>
+
+              {/* NOTICE */}
+
+              <div className="rounded-2xl border border-[var(--brand-red-secondary)]/10 bg-[var(--brand-red)]/[0.03] p-4 flex gap-3">
+                <Bell
+                  size={17}
+                  className="text-[var(--brand-red)] shrink-0 mt-0.5"
+                />
+
+                <p className="text-xs text-[var(--brand-medium-gray)] leading-5">
+                  The Founder will receive a real-time notification with your
+                  Google Drive submission link.
+                </p>
+              </div>
+
+              {/* ACTION */}
+
+              <button
+                onClick={submitTask}
+                disabled={actionLoading === selectedTask.id}
+                className="w-full py-3.5 rounded-xl bg-[var(--brand-red)] font-semibold text-sm flex items-center justify-center gap-2 hover:brightness-110 disabled:opacity-50"
+              >
+                {actionLoading === selectedTask.id ? (
+                  <>
+                    <Loader2 size={17} className="animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Send size={17} />
+                    Submit to Founder
+                  </>
+                )}
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
     </main>
   );
 }
@@ -3218,29 +2608,22 @@ function NavItem({
 }) {
   return (
     <button
-      onClick={() =>
-        (window.location.href =
-          path)
-      }
+      onClick={() => (window.location.href = path)}
       className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition ${
         active
-          ? "bg-violet-500/10 text-violet-300 border border-violet-500/10"
-          : "text-white/40 hover:text-white hover:bg-white/[0.04]"
+          ? "bg-[var(--brand-red)]/10 text-[var(--brand-red)] border border-[var(--brand-red-secondary)]/10"
+          : "text-[var(--brand-black)] hover:text-[var(--brand-black)] hover:bg-[var(--brand-red-light)]"
       }`}
     >
       {icon}
 
       <span>{label}</span>
 
-      {typeof badge ===
-        "number" &&
-        badge > 0 && (
-          <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-violet-500/15 text-violet-300 text-[10px] flex items-center justify-center">
-            {badge > 99
-              ? "99+"
-              : badge}
-          </span>
-        )}
+      {typeof badge === "number" && badge > 0 && (
+        <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full bg-[var(--brand-red)]/15 text-[var(--brand-red)] text-[10px] flex items-center justify-center">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </button>
   );
 }
@@ -3269,23 +2652,21 @@ function StatCard({
       whileHover={{
         y: -2,
       }}
-      className="rounded-2xl border border-white/[0.07] bg-white/[0.018] p-5"
+      className="rounded-2xl border border-[var(--brand-border)] bg-white p-5"
     >
-      <div className="h-10 w-10 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-300">
+      <div className="h-10 w-10 rounded-xl bg-[var(--brand-red)]/10 flex items-center justify-center text-[var(--brand-red)]">
         {icon}
       </div>
 
-      <div className="mt-5 text-sm text-white/35">
-        {label}
-      </div>
+      <div className="mt-5 text-sm text-[var(--brand-black)]">{label}</div>
 
       <div
         className={`mt-1 text-3xl font-bold ${
           danger
-            ? "text-red-300"
+            ? "text-red-700"
             : warning
-            ? "text-orange-300"
-            : "text-white"
+              ? "text-orange-700"
+              : "text-[var(--brand-black)]"
         }`}
       >
         {value}
@@ -3294,10 +2675,10 @@ function StatCard({
       <div
         className={`text-xs mt-1 ${
           danger
-            ? "text-red-300/60"
+            ? "text-red-700/60"
             : warning
-            ? "text-orange-300/60"
-            : "text-white/25"
+              ? "text-orange-700/60"
+              : "text-[var(--brand-black)]"
         }`}
       >
         {description}
@@ -3324,8 +2705,8 @@ function FilterButton({
       onClick={onClick}
       className={`h-11 px-4 rounded-xl border flex items-center justify-center gap-2 whitespace-nowrap text-sm transition-all ${
         active
-          ? "border-violet-500/30 bg-violet-500/10 text-violet-200"
-          : "border-white/[0.07] bg-white/[0.02] text-white/40 hover:bg-white/[0.06] hover:text-white/70"
+          ? "border-[var(--brand-red-secondary)]/30 bg-[var(--brand-red)]/10 text-[var(--brand-red)]"
+          : "border-[var(--brand-border)] bg-white text-[var(--brand-black)] hover:bg-[var(--brand-red-light)] hover:text-[var(--brand-black)]"
       }`}
     >
       {children}
@@ -3347,18 +2728,14 @@ function DetailBox({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
-      <div className="flex items-center gap-2 text-white/25">
+    <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-4">
+      <div className="flex items-center gap-2 text-[var(--brand-black)]">
         {icon}
 
-        <span className="text-[10px] uppercase tracking-wider">
-          {label}
-        </span>
+        <span className="text-[10px] uppercase tracking-wider">{label}</span>
       </div>
 
-      <p className="text-sm text-white/65 mt-2">
-        {value}
-      </p>
+      <p className="text-sm text-[var(--brand-medium-gray)] mt-2">{value}</p>
     </div>
   );
 }
@@ -3367,40 +2744,24 @@ function DetailBox({
 /* EMPTY TASKS                                                                */
 /* -------------------------------------------------------------------------- */
 
-function EmptyTasks({
-  filter,
-  search,
-}: {
-  filter: string;
-  search: string;
-}) {
-  const filtered =
-    search.length > 0 ||
-    filter !== "all";
+function EmptyTasks({ filter, search }: { filter: string; search: string }) {
+  const filtered = search.length > 0 || filter !== "all";
 
   return (
     <div className="min-h-[380px] flex flex-col items-center justify-center text-center px-6">
-      <div className="h-16 w-16 rounded-2xl bg-violet-500/10 border border-violet-500/10 flex items-center justify-center mb-5">
+      <div className="h-16 w-16 rounded-2xl bg-[var(--brand-red)]/10 border border-[var(--brand-red-secondary)]/10 flex items-center justify-center mb-5">
         {filtered ? (
-          <Search
-            size={27}
-            className="text-violet-300"
-          />
+          <Search size={27} className="text-[var(--brand-red)]" />
         ) : (
-          <FolderOpen
-            size={27}
-            className="text-violet-300"
-          />
+          <FolderOpen size={27} className="text-[var(--brand-red)]" />
         )}
       </div>
 
       <h3 className="text-lg font-semibold">
-        {filtered
-          ? "No matching tasks"
-          : "No tasks assigned yet"}
+        {filtered ? "No matching tasks" : "No tasks assigned yet"}
       </h3>
 
-      <p className="text-sm text-white/30 mt-2 max-w-md">
+      <p className="text-sm text-[var(--brand-medium-gray)] mt-2 max-w-md">
         {filtered
           ? "Try changing your search or filter."
           : "When the Founder assigns work to you, it will appear here automatically."}
@@ -3423,16 +2784,14 @@ function InfoCard({
   text: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.018] p-5">
-      <p className="text-[10px] font-semibold tracking-[0.2em] text-violet-300/70">
+    <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-5">
+      <p className="text-[10px] font-semibold tracking-[0.2em] text-[var(--brand-red)]">
         {number}
       </p>
 
-      <h3 className="mt-4 font-semibold">
-        {title}
-      </h3>
+      <h3 className="mt-4 font-semibold">{title}</h3>
 
-      <p className="text-xs leading-6 text-white/30 mt-2">
+      <p className="text-xs leading-6 text-[var(--brand-medium-gray)] mt-2">
         {text}
       </p>
     </div>
