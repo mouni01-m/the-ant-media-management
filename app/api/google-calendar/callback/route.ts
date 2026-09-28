@@ -53,8 +53,12 @@ export async function GET(request: Request) {
       hasRedirectUri: Boolean(process.env.GOOGLE_REDIRECT_URI),
       hasOAuthStateSecret: Boolean(process.env.GOOGLE_OAUTH_STATE_SECRET),
       hasEncryptionKey: Boolean(process.env.CLIENT_CREDENTIALS_ENCRYPTION_KEY),
-      hasFirebaseProjectId: Boolean(process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
+      hasFirebaseProjectId: Boolean(process.env.FIREBASE_PROJECT_ID),
+      hasPublicFirebaseProjectId: Boolean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
       hasFirebaseServiceAccountJson: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON),
+      hasFirebaseClientEmail: Boolean(process.env.FIREBASE_CLIENT_EMAIL),
+      hasFirebasePrivateKey: Boolean(process.env.FIREBASE_PRIVATE_KEY),
+      hasFirebaseAdminConfig: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY)),
       hasGoogleApplicationCredentials: Boolean(process.env.GOOGLE_APPLICATION_CREDENTIALS),
     });
     return fail("Google Calendar could not be connected. Check server configuration and try again.");

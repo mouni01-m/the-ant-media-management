@@ -21,7 +21,9 @@ async function api(path: string, init: RequestInit = {}) {
   if (response.status === 401) {
     throw new Error("Your session has expired. Please sign in again.");
   }
-  if (!response.ok) throw new Error(data.error || "Google Calendar request failed.");
+  if (!response.ok) {
+    throw new Error(data.message || data.error || "Google Calendar could not be reached. Please try again.");
+  }
   return data;
 }
 
