@@ -27,6 +27,7 @@ import {
 import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 
 import { auth, db } from "@/lib/firebase";
+import { toFirestoreMillis } from "@/lib/firestore-time";
 
 type LeaveRequest = {
   id: string;
@@ -43,8 +44,8 @@ type LeaveRequest = {
 
   responseNote?: string;
 
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 };
 
 const leaveTypes = [
@@ -105,9 +106,8 @@ export default function EmployeeLeaveRequestsPage() {
       })) as LeaveRequest[];
 
       data.sort((a, b) => {
-        const aTime = a.createdAt?.seconds || 0;
-
-        const bTime = b.createdAt?.seconds || 0;
+        const aTime = toFirestoreMillis(a.createdAt);
+        const bTime = toFirestoreMillis(b.createdAt);
 
         return bTime - aTime;
       });

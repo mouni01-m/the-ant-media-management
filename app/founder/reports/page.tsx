@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -20,6 +21,11 @@ import {
 import { collection, onSnapshot, Timestamp } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
+import {
+  calculateMonthlyAttendance,
+  type AttendanceInputRecord,
+  type AttendanceLeaveRecord,
+} from "@/lib/attendance-calculations";
 
 type UserRecord = {
   id: string;
@@ -37,21 +43,32 @@ type TaskRecord = {
   status?: string;
   priority?: string;
   assignedTo?: string;
+  assignedToId?: string;
   assignedToName?: string;
+  teamMemberIds?: string[];
   department?: string;
   clientName?: string;
   deadline?: string;
+  deadlineDate?: string;
   deadlineTime?: string;
   startDate?: string;
   createdAt?: Timestamp | Date | string | null;
   updatedAt?: Timestamp | Date | string | null;
   completedAt?: Timestamp | Date | string | null;
+  deleted?: boolean;
+  isDeleted?: boolean;
+  recycled?: boolean;
+  isRecycled?: boolean;
+  deletedAt?: Timestamp | Date | string | null;
 };
 
 type Period = "today" | "week" | "month";
 
+const normalize = (value?: unknown) =>
+  typeof value === "string" ? value.trim().toLowerCase() : "";
+
 const normalizeStatus = (status?: string) =>
-  (status || "").trim().toUpperCase().replace(/_/g, " ");
+  normalize(status).toUpperCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
 
 const statusLabel = (status?: string) => {
   switch (normalizeStatus(status)) {
@@ -76,8 +93,22 @@ const statusLabel = (status?: string) => {
 const isCompleted = (task: TaskRecord) =>
   normalizeStatus(task.status) === "COMPLETED";
 
+const isDeleted = (task: TaskRecord) =>
+  task.deleted === true ||
+  task.isDeleted === true ||
+  task.recycled === true ||
+  task.isRecycled === true ||
+  Boolean(task.deletedAt);
+
 const isActive = (task: TaskRecord) =>
-  !["COMPLETED", "APPROVED"].includes(normalizeStatus(task.status));
+  !isDeleted(task) &&
+  [
+    "TODO",
+    "IN PROGRESS",
+    "SUBMITTED",
+    "CHANGES REQUESTED",
+    "APPROVED",
+  ].includes(normalizeStatus(task.status));
 
 const getToday = () => {
   const now = new Date();
@@ -148,9 +179,16 @@ const getPeriodEnd = (period: Period) => {
 };
 
 const dateOnly = (value?: string | null) => {
-  if (!value) return null;
+  if (typeof value !== "string" || !value) return null;
 
-  const date = new Date(value);
+  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  const date = dateMatch
+    ? new Date(
+        Number(dateMatch[1]),
+        Number(dateMatch[2]) - 1,
+        Number(dateMatch[3]),
+      )
+    : new Date(value);
 
   if (Number.isNaN(date.getTime())) {
     return null;
@@ -167,7 +205,12 @@ const toDate = (value: unknown): Date | null => {
   }
 
   if (value instanceof Date) {
-    return value;
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === "number") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
   if (typeof value === "string") {
@@ -189,13 +232,18 @@ const toDate = (value: unknown): Date | null => {
 };
 
 const getDeadlineDate = (task: TaskRecord) => {
-  if (!task.deadline) {
+  const dateValue =
+    (typeof task.deadlineDate === "string" && task.deadlineDate) ||
+    (typeof task.deadline === "string" && task.deadline);
+  if (!dateValue) {
     return null;
   }
 
-  const value = task.deadlineTime
-    ? `${task.deadline}T${task.deadlineTime}`
-    : `${task.deadline}T23:59:59`;
+  const value = dateValue.includes("T")
+    ? dateValue
+    : task.deadlineTime
+      ? `${dateValue}T${task.deadlineTime}`
+      : `${dateValue}T23:59:59`;
 
   const date = new Date(value);
 
@@ -205,12 +253,39 @@ const getDeadlineDate = (task: TaskRecord) => {
 const isOverdue = (task: TaskRecord) => {
   const deadline = getDeadlineDate(task);
 
-  if (!deadline || isCompleted(task)) {
+  if (!deadline || isDeleted(task) || isCompleted(task)) {
     return false;
   }
 
   return deadline.getTime() < Date.now();
 };
+
+const getAssignedIds = (task: TaskRecord) =>
+  Array.from(
+    new Set(
+      [
+        task.assignedTo,
+        task.assignedToId,
+        ...(Array.isArray(task.teamMemberIds) ? task.teamMemberIds : []),
+      ].filter(
+        (value): value is string => typeof value === "string" && !!value.trim(),
+      ),
+    ),
+  );
+
+const isAssignedToMember = (task: TaskRecord, member: UserRecord) =>
+  getAssignedIds(task).includes(member.id) ||
+  (!!member.name &&
+    [task.assignedToName, task.assignedTo].some(
+      (assignee) => normalize(assignee) === normalize(member.name),
+    ));
+
+const getTaskDepartment = (task: TaskRecord, member?: UserRecord) =>
+  normalize(task.department)
+    ? String(task.department).trim()
+    : normalize(member?.department)
+      ? String(member?.department).trim()
+      : "Unassigned";
 
 const formatDate = (value?: string | null) => {
   if (!value) {
@@ -236,6 +311,10 @@ export default function FounderReportsPage() {
 
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<
+    AttendanceInputRecord[]
+  >([]);
+  const [leaveRecords, setLeaveRecords] = useState<AttendanceLeaveRecord[]>([]);
 
   const [period, setPeriod] = useState<Period>("month");
 
@@ -249,13 +328,19 @@ export default function FounderReportsPage() {
     let unsubscribeUsers: (() => void) | null = null;
 
     let unsubscribeTasks: (() => void) | null = null;
+    let unsubscribeAttendance: (() => void) | null = null;
+    let unsubscribeLeaves: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       unsubscribeUsers?.();
       unsubscribeTasks?.();
+      unsubscribeAttendance?.();
+      unsubscribeLeaves?.();
 
       unsubscribeUsers = null;
       unsubscribeTasks = null;
+      unsubscribeAttendance = null;
+      unsubscribeLeaves = null;
 
       if (!user) {
         setAuthorized(false);
@@ -301,6 +386,38 @@ export default function FounderReportsPage() {
         },
       );
 
+      unsubscribeAttendance = onSnapshot(
+        collection(db, "attendance"),
+        (snapshot) => {
+          setAttendanceRecords(
+            snapshot.docs.map((item) => ({
+              id: item.id,
+              ...(item.data() as Omit<AttendanceInputRecord, "id">),
+            })),
+          );
+        },
+        (error) => {
+          console.error("Founder reports attendance listener error:", error);
+          setAttendanceRecords([]);
+        },
+      );
+
+      unsubscribeLeaves = onSnapshot(
+        collection(db, "leaveRequests"),
+        (snapshot) => {
+          setLeaveRecords(
+            snapshot.docs.map((item) => ({
+              id: item.id,
+              ...(item.data() as Omit<AttendanceLeaveRecord, "id">),
+            })),
+          );
+        },
+        (error) => {
+          console.error("Founder reports leave listener error:", error);
+          setLeaveRecords([]);
+        },
+      );
+
       unsubscribeTasks = onSnapshot(
         collection(db, "tasks"),
         (snapshot) => {
@@ -324,6 +441,8 @@ export default function FounderReportsPage() {
     return () => {
       unsubscribeUsers?.();
       unsubscribeTasks?.();
+      unsubscribeAttendance?.();
+      unsubscribeLeaves?.();
       unsubscribeAuth();
     };
   }, []);
@@ -332,46 +451,62 @@ export default function FounderReportsPage() {
     () =>
       users.filter(
         (user) =>
-          (user.role === "employee" || user.role === "intern") &&
+          ["employee", "intern"].includes(normalize(user.role)) &&
           user.active === true,
       ),
     [users],
   );
 
   const departments = useMemo(() => {
-    const values = teamMembers
-      .map((user) => user.department)
-      .filter(Boolean) as string[];
+    const values = [
+      ...teamMembers.map((user) => user.department),
+      ...tasks.map((task) => task.department),
+    ].filter(
+      (value): value is string => typeof value === "string" && !!value.trim(),
+    );
 
-    return Array.from(new Set(values)).sort();
-  }, [teamMembers]);
+    return Array.from(
+      new Map(values.map((value) => [normalize(value), value.trim()])).values(),
+    ).sort();
+  }, [teamMembers, tasks]);
 
   const filteredTasks = useMemo(() => {
     const start = getPeriodStart(period);
     const end = getPeriodEnd(period);
 
     return tasks.filter((task) => {
-      const assignedMember = teamMembers.find(
-        (user) => user.id === task.assignedTo,
+      if (isDeleted(task)) return false;
+
+      const assignedMembers = teamMembers.filter((user) =>
+        isAssignedToMember(task, user),
       );
 
-      if (roleFilter !== "all" && assignedMember?.role !== roleFilter) {
+      if (
+        roleFilter !== "all" &&
+        !assignedMembers.some((user) => normalize(user.role) === roleFilter)
+      ) {
         return false;
       }
 
-      const department = task.department || assignedMember?.department || "";
+      const assignedMember = assignedMembers[0];
+      const department = getTaskDepartment(task, assignedMember);
 
-      if (departmentFilter !== "all" && department !== departmentFilter) {
+      if (
+        departmentFilter !== "all" &&
+        normalize(department) !== normalize(departmentFilter)
+      ) {
         return false;
       }
 
       const taskDate =
-        dateOnly(task.startDate) ||
-        dateOnly(task.deadline) ||
-        toDate(task.createdAt);
+        toDate(task.createdAt) ||
+        toDate(task.startDate) ||
+        dateOnly(task.startDate);
 
+      // Legacy records can lack creation/start dates; keep them visible instead of
+      // silently removing the whole report. Dated tasks use creation date for period scope.
       if (!taskDate) {
-        return false;
+        return true;
       }
 
       return (
@@ -396,14 +531,18 @@ export default function FounderReportsPage() {
 
   const memberWorkload = useMemo(() => {
     return teamMembers
-      .filter((member) => roleFilter === "all" || member.role === roleFilter)
       .filter(
         (member) =>
-          departmentFilter === "all" || member.department === departmentFilter,
+          roleFilter === "all" || normalize(member.role) === roleFilter,
+      )
+      .filter(
+        (member) =>
+          departmentFilter === "all" ||
+          normalize(member.department) === normalize(departmentFilter),
       )
       .map((member) => {
-        const memberTasks = filteredTasks.filter(
-          (task) => task.assignedTo === member.id,
+        const memberTasks = filteredTasks.filter((task) =>
+          isAssignedToMember(task, member),
         );
 
         const active = memberTasks.filter(isActive);
@@ -440,11 +579,12 @@ export default function FounderReportsPage() {
     >();
 
     filteredTasks.forEach((task) => {
-      const member = teamMembers.find((user) => user.id === task.assignedTo);
+      const member = teamMembers.find((user) => isAssignedToMember(task, user));
 
-      const department = task.department || member?.department || "Unassigned";
+      const department = getTaskDepartment(task, member);
 
-      const existing = map.get(department) || {
+      const key = normalize(department);
+      const existing = map.get(key) || {
         department,
         total: 0,
         active: 0,
@@ -466,11 +606,42 @@ export default function FounderReportsPage() {
         existing.overdue += 1;
       }
 
-      map.set(department, existing);
+      map.set(key, existing);
     });
 
     return Array.from(map.values()).sort((a, b) => b.active - a.active);
   }, [filteredTasks, teamMembers]);
+
+  const reportMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+  const attendanceWorkload = useMemo(
+    () =>
+      teamMembers
+        .filter(
+          (member) =>
+            roleFilter === "all" || normalize(member.role) === roleFilter,
+        )
+        .filter(
+          (member) =>
+            departmentFilter === "all" ||
+            normalize(member.department) === normalize(departmentFilter),
+        )
+        .map((member) => ({
+          member,
+          summary: calculateMonthlyAttendance(
+            reportMonth,
+            attendanceRecords.filter((record) => record.userId === member.id),
+            leaveRecords.filter((leave) => leave.userId === member.id),
+          ),
+        })),
+    [
+      teamMembers,
+      roleFilter,
+      departmentFilter,
+      reportMonth,
+      attendanceRecords,
+      leaveRecords,
+    ],
+  );
 
   const highestWorkload = memberWorkload[0];
 
@@ -515,7 +686,7 @@ export default function FounderReportsPage() {
 
     const today = getToday();
     const dueToday = filteredTasks.filter((task) => {
-      const deadline = dateOnly(task.deadline);
+      const deadline = dateOnly(task.deadlineDate || task.deadline);
       return (
         deadline !== null &&
         deadline.getTime() === today.getTime() &&
@@ -544,7 +715,8 @@ export default function FounderReportsPage() {
       overdueTasks.forEach((task) => {
         const key =
           task.assignedToName ||
-          teamMembers.find((member) => member.id === task.assignedTo)?.name ||
+          teamMembers.find((member) => isAssignedToMember(task, member))
+            ?.name ||
           "Unassigned";
 
         overdueByMember.set(key, (overdueByMember.get(key) || 0) + 1);
@@ -571,7 +743,7 @@ export default function FounderReportsPage() {
 
     const roleStats = ["employee", "intern"].map((role) => {
       const roleMembers = memberWorkload.filter(
-        (member) => member.role === role,
+        (member) => normalize(member.role) === role,
       );
 
       return {
@@ -634,7 +806,9 @@ export default function FounderReportsPage() {
 
   const roleWorkload = useMemo(() => {
     return ["employee", "intern"].map((role) => {
-      const members = memberWorkload.filter((member) => member.role === role);
+      const members = memberWorkload.filter(
+        (member) => normalize(member.role) === role,
+      );
 
       return {
         role,
@@ -801,6 +975,82 @@ export default function FounderReportsPage() {
             value={`${completionRate}%`}
             description={`${completedTasks.length} completed`}
           />
+        </section>
+
+        {/* MONTHLY ATTENDANCE */}
+        <section className="rounded-3xl border border-[var(--brand-border)] bg-white p-6 mb-6">
+          <div className="mb-5 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-sm text-[var(--brand-medium-gray)]">
+                Shared monthly calculation
+              </p>
+              <h2 className="mt-1 text-xl font-semibold">
+                Attendance ·{" "}
+                {new Date(
+                  Number(reportMonth.slice(0, 4)),
+                  Number(reportMonth.slice(5, 7)) - 1,
+                  1,
+                ).toLocaleDateString("en-IN", {
+                  month: "long",
+                  year: "numeric",
+                })}
+              </h2>
+            </div>
+            <Link
+              href="/founder/attendance"
+              className="text-sm font-semibold text-[var(--brand-red)]"
+            >
+              Open attendance →
+            </Link>
+          </div>
+          {attendanceWorkload.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[850px] text-left text-sm">
+                <thead className="border-b text-xs uppercase text-gray-500">
+                  <tr>
+                    {[
+                      "Employee",
+                      "Type",
+                      "Working",
+                      "Present",
+                      "Leave",
+                      "Absent",
+                      "Sunday work",
+                      "Hours",
+                      "Attendance",
+                    ].map((label) => (
+                      <th key={label} className="px-3 py-3">
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {attendanceWorkload.map(({ member, summary }) => (
+                    <tr key={member.id} className="border-b border-gray-100">
+                      <td className="px-3 py-3 font-medium">
+                        {member.name || member.email || "Team member"}
+                      </td>
+                      <td className="px-3 py-3 capitalize">{member.role}</td>
+                      <td className="px-3 py-3">{summary.workingDays}</td>
+                      <td className="px-3 py-3">{summary.presentDays}</td>
+                      <td className="px-3 py-3">{summary.leaveDays}</td>
+                      <td className="px-3 py-3">{summary.absentDays}</td>
+                      <td className="px-3 py-3">{summary.sundayWorkedDays}</td>
+                      <td className="px-3 py-3">
+                        {summary.totalHours.toFixed(1)}h
+                      </td>
+                      <td className="px-3 py-3">
+                        {summary.attendancePercentage}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState text="No attendance data for this filter." />
+          )}
         </section>
 
         {/* TEAM WORKLOAD */}
@@ -1148,7 +1398,7 @@ export default function FounderReportsPage() {
 
                     <div className="text-left md:text-right shrink-0">
                       <p className="text-sm font-medium text-red-700">
-                        {formatDate(task.deadline)}
+                        {formatDate(task.deadlineDate || task.deadline)}
                       </p>
 
                       {task.deadlineTime && (

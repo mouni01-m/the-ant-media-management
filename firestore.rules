@@ -114,8 +114,35 @@ service cloud.firestore {
     }
 
     match /clients/{clientId} {
-      allow read: if isActiveUser();
+      allow read: if isFounder();
       allow create, update, delete: if isFounder();
+    }
+
+    // Account credentials and payment history are Founder-only data. Client
+    // credentials are read and written by the server API after token checks.
+    match /clientAccounts/{accountId} {
+      allow read, write: if false;
+    }
+
+    match /clientPayments/{paymentId} {
+      allow read, write: if isFounder();
+    }
+
+    match /clientWork/{workId} {
+      allow read, create, update, delete: if isFounder();
+    }
+
+    // Employee private data is accessed only by the Founder-authenticated
+    // Firebase Admin API. No browser SDK user, including a Founder, reads it
+    // directly.
+    match /employeeProfiles/{userId} {
+      allow read, write: if false;
+    }
+
+    // Google refresh tokens and connection metadata are only accessible via
+    // authenticated server routes, never directly from client Firestore SDKs.
+    match /googleCalendarConnections/{userId} {
+      allow read, write: if false;
     }
 
     match /notifications/{notificationId} {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import {
   AlertCircle,
@@ -39,6 +40,7 @@ import {
 
 import { auth, db } from "@/lib/firebase";
 import BrandLogo from "@/app/components/brand-logo";
+import { toFirestoreDate, toFirestoreMillis } from "@/lib/firestore-time";
 
 /* -------------------------------------------------------------------------- */
 /* TYPES                                                                      */
@@ -66,14 +68,14 @@ type Task = {
   deadline?: string;
   deadlineTime?: string;
   status?: string;
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 };
 
 type Attendance = {
   date?: string;
-  checkIn?: any;
-  checkOut?: any;
+  checkIn?: unknown;
+  checkOut?: unknown;
   status?: string;
   totalHours?: number;
 };
@@ -120,29 +122,7 @@ function formatShortDate(dateString?: string) {
   }
 }
 
-function getTimestampMillis(value: any) {
-  try {
-    if (typeof value?.toMillis === "function") {
-      return value.toMillis();
-    }
-
-    if (typeof value?.toDate === "function") {
-      return value.toDate().getTime();
-    }
-
-    if (value instanceof Date) {
-      return value.getTime();
-    }
-
-    if (typeof value === "string" || typeof value === "number") {
-      return new Date(value).getTime();
-    }
-
-    return 0;
-  } catch {
-    return 0;
-  }
-}
+function getTimestampMillis(value: unknown) { return toFirestoreMillis(value); }
 
 function getPriorityClass(priority?: string) {
   switch (priority?.toLowerCase()) {
@@ -283,6 +263,7 @@ const navItems = [
 /* -------------------------------------------------------------------------- */
 
 export default function EmployeePage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -554,13 +535,13 @@ export default function EmployeePage() {
 
   function navigate(path: string) {
     setSidebarOpen(false);
-    window.location.href = path;
+    router.push(path);
   }
 
   async function handleLogout() {
     try {
       await signOut(auth);
-      window.location.href = "/";
+      router.push("/");
     } catch (error) {
       console.error("Logout error:", error);
     }
@@ -999,7 +980,7 @@ export default function EmployeePage() {
                     <div className="flex items-center gap-2">
                       <UserCheck size={18} className="text-emerald-700" />
 
-                      <h3 className="font-semibold">Today's Attendance</h3>
+                      <h3 className="font-semibold">Today&apos;s Attendance</h3>
                     </div>
 
                     <p className="text-xs text-[var(--brand-medium-gray)] mt-1">
@@ -1045,7 +1026,7 @@ export default function EmployeePage() {
                     )}
                   </div>
 
-                  {todayAttendance?.checkIn && (
+                  {todayAttendance && Boolean(todayAttendance.checkIn) ? (
                     <div className="grid grid-cols-2 gap-3 mt-4">
                       <TimeBox
                         label="Check in"
@@ -1061,7 +1042,7 @@ export default function EmployeePage() {
                         }
                       />
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
                 <button
@@ -1495,16 +1476,12 @@ function InfoBox({ label, value }: { label: string; value: string }) {
 /* TIME FORMAT                                                                 */
 /* -------------------------------------------------------------------------- */
 
-function formatTimeValue(value: any) {
+function formatTimeValue(value: unknown) {
   if (!value) return "—";
 
   try {
-    const date =
-      typeof value?.toDate === "function" ? value.toDate() : new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return "—";
-    }
+    const date = toFirestoreDate(value);
+    if (!date) return "—";
 
     return date.toLocaleTimeString("en-IN", {
       hour: "2-digit",

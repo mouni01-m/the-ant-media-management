@@ -35,6 +35,7 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { toFirestoreDate, toFirestoreMillis } from "@/lib/firestore-time";
 
 type NotificationItem = {
   id: string;
@@ -44,7 +45,7 @@ type NotificationItem = {
   type?: string;
   priority?: string;
   read?: boolean;
-  createdAt?: any;
+  createdAt?: unknown;
   taskId?: string;
   leaveRequestId?: string;
   link?: string;
@@ -56,24 +57,13 @@ type NotificationItem = {
   recipientName?: string;
 };
 
-function timestamp(value: any) {
-  try {
-    if (!value) return 0;
-    if (typeof value.toMillis === "function") return value.toMillis();
-    if (typeof value.toDate === "function") return value.toDate().getTime();
-    const n = new Date(value).getTime();
-    return Number.isNaN(n) ? 0 : n;
-  } catch {
-    return 0;
-  }
-}
+function timestamp(value: unknown) { return toFirestoreMillis(value); }
 
-function formatTime(value: any) {
+function formatTime(value: unknown) {
   if (!value) return "Just now";
   try {
-    const date =
-      typeof value?.toDate === "function" ? value.toDate() : new Date(value);
-    if (Number.isNaN(date.getTime())) return "Just now";
+    const date = toFirestoreDate(value);
+    if (!date) return "Just now";
     const diff = Date.now() - date.getTime();
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);

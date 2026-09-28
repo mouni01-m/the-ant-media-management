@@ -28,6 +28,7 @@ import {
   where,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { toFirestoreMillis } from "@/lib/firestore-time";
 
 type LeaveRequest = {
   id: string;
@@ -40,23 +41,13 @@ type LeaveRequest = {
   reason?: string;
   status?: "PENDING" | "APPROVED" | "REJECTED";
   responseNote?: string;
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: unknown;
+  updatedAt?: unknown;
   approvedBy?: string;
   approvedByName?: string;
 };
 
-function timeValue(value: any) {
-  try {
-    if (!value) return 0;
-    if (typeof value.toMillis === "function") return value.toMillis();
-    if (typeof value.toDate === "function") return value.toDate().getTime();
-    const n = new Date(value).getTime();
-    return Number.isNaN(n) ? 0 : n;
-  } catch {
-    return 0;
-  }
-}
+function timeValue(value: unknown) { return toFirestoreMillis(value); }
 
 function dateLabel(value?: string) {
   if (!value) return "Not set";

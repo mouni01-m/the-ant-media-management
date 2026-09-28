@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity,
@@ -64,8 +65,11 @@ type Task = {
   deadlineDate?: string;
   deadlineTime?: string;
   status?: string;
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+  deleted?: boolean;
+  isDeleted?: boolean;
+  deletedAt?: unknown;
 };
 
 type UserProfile = {
@@ -84,10 +88,33 @@ type AttendanceRecord = {
   role?: string;
   department?: string;
   date?: string;
-  checkIn?: any;
-  checkOut?: any;
+  checkIn?: unknown;
+  checkOut?: unknown;
   status?: string;
   totalHours?: number;
+  markedByName?: string;
+  markedBy?: string;
+  createdByName?: string;
+};
+
+type ClientRecord = {
+  id: string;
+  name?: string;
+  company?: string;
+  email?: string;
+  deletedAt?: unknown;
+};
+type LeaveRequestRecord = {
+  id: string;
+  status?: unknown;
+  userId?: unknown;
+  startDate?: string;
+  endDate?: string;
+};
+type NotificationRecord = {
+  read?: boolean;
+  direction?: string;
+  senderId?: string;
 };
 
 function getTodayKey() {
@@ -104,11 +131,23 @@ function formatTodayLong() {
   });
 }
 
-function getTimestampMillis(value: any) {
+function getTimestampMillis(value: unknown) {
   try {
-    if (typeof value?.toMillis === "function") return value.toMillis();
-    if (typeof value?.toDate === "function") return value.toDate().getTime();
     if (value instanceof Date) return value.getTime();
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      "toMillis" in value &&
+      typeof value.toMillis === "function"
+    )
+      return value.toMillis();
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      "toDate" in value &&
+      typeof value.toDate === "function"
+    )
+      return value.toDate().getTime();
     if (typeof value === "string" || typeof value === "number")
       return new Date(value).getTime();
   } catch {}
@@ -116,18 +155,29 @@ function getTimestampMillis(value: any) {
 }
 
 function normalizeStatus(status?: string) {
-  return String(status || "TO DO")
-    .toUpperCase()
-    .replace(/[\\_-]+/g, " ")
-    .trim();
+  return String(status || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[-_\s]+/g, "_");
 }
 
 function isCompleted(status?: string) {
-  return normalizeStatus(status) === "COMPLETED";
+  return normalizeStatus(status) === "completed";
 }
 
 function isActiveTask(task: Task) {
-  return !isCompleted(task.status);
+  return (
+    task.deleted !== true &&
+    task.isDeleted !== true &&
+    !task.deletedAt &&
+    [
+      "todo",
+      "in_progress",
+      "submitted",
+      "changes_requested",
+      "approved",
+    ].includes(normalizeStatus(task.status))
+  );
 }
 
 function getTaskDateKey(task: Task) {
@@ -137,14 +187,21 @@ function getTaskDateKey(task: Task) {
 }
 
 function isTaskOverdue(task: Task) {
-  if (!task.deadline && !task.deadlineDate) return false;
-  if (isCompleted(task.status)) return false;
+  if (
+    (!task.deadline && !task.deadlineDate) ||
+    isCompleted(task.status) ||
+    task.deleted === true ||
+    task.isDeleted === true ||
+    task.deletedAt
+  )
+    return false;
 
   const raw = task.deadline || task.deadlineDate || "";
-  const value =
-    task.deadlineTime && !String(raw).includes("T")
+  const value = String(raw).includes("T")
+    ? String(raw)
+    : task.deadlineTime
       ? `${raw}T${task.deadlineTime}`
-      : raw;
+      : `${raw}T23:59:59`;
   const date = new Date(value);
 
   return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
@@ -167,12 +224,20 @@ function getPriorityClass(priority?: string) {
 }
 
 export default function FounderDashboard() {
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [activePage, setActivePage] = useState("Overview");
   const [employeeNotificationCount, setEmployeeNotificationCount] = useState(0);
   const [founderName, setFounderName] = useState("Founder");
+  const [founderEmail, setFounderEmail] = useState("");
+  const [founderRole, setFounderRole] = useState("Founder");
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [notificationOpen, setNotificationOpen] = useState(false);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [clients, setClients] = useState<ClientRecord[]>([]);
   const [liveTasks, setLiveTasks] = useState<Task[]>([]);
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord[]>(
     [],
@@ -180,6 +245,7 @@ export default function FounderDashboard() {
   const [todayApprovedLeaveIds, setTodayApprovedLeaveIds] = useState<string[]>(
     [],
   );
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   /*
    * LIVE FOUNDER OVERVIEW DATA
@@ -192,25 +258,32 @@ export default function FounderDashboard() {
     let unsubscribeAttendance: (() => void) | null = null;
     let unsubscribeLeaveRequests: (() => void) | null = null;
     let unsubscribeNotifications: (() => void) | null = null;
+    let unsubscribeClients: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (!user) {
         setEmployeeNotificationCount(0);
         setFounderName("Founder");
+        setFounderEmail("");
+        setFounderRole("Founder");
         setUsers([]);
         setLiveTasks([]);
         setTodayAttendance([]);
         setTodayApprovedLeaveIds([]);
+        setClients([]);
         unsubscribeUsers?.();
         unsubscribeTasks?.();
         unsubscribeAttendance?.();
         unsubscribeNotifications?.();
+        unsubscribeClients?.();
         return;
       }
 
       setFounderName(
         user.displayName || user.email?.split("@")[0] || "Founder",
       );
+      setFounderEmail(user.email || "");
+      setFounderRole("Founder");
 
       unsubscribeUsers?.();
       unsubscribeUsers = onSnapshot(
@@ -230,6 +303,17 @@ export default function FounderDashboard() {
             );
 
           setUsers(members);
+          const profile = snapshot.docs
+            .find((item) => item.id === user.uid)
+            ?.data();
+          if (typeof profile?.name === "string" && profile.name.trim())
+            setFounderName(profile.name.trim());
+          else
+            setFounderName(
+              user.displayName || user.email?.split("@")[0] || "Founder",
+            );
+          setFounderEmail(String(profile?.email || user.email || ""));
+          if (typeof profile?.role === "string") setFounderRole(profile.role);
         },
         (error) => {
           console.error("Founder users listener error:", error);
@@ -284,7 +368,9 @@ export default function FounderDashboard() {
         collection(db, "leaveRequests"),
         (snapshot) => {
           const leaveIds = snapshot.docs
-            .map((item) => ({ id: item.id, ...item.data() }) as any)
+            .map(
+              (item) => ({ id: item.id, ...item.data() }) as LeaveRequestRecord,
+            )
             .filter((request) => {
               if (String(request.status || "").toUpperCase() !== "APPROVED")
                 return false;
@@ -309,7 +395,7 @@ export default function FounderDashboard() {
         query(collection(db, "notifications"), where("userId", "==", user.uid)),
         (snapshot) => {
           const count = snapshot.docs.filter((item) => {
-            const data = item.data() as any;
+            const data = item.data() as NotificationRecord;
             return (
               data.read !== true &&
               (data.direction || "received") === "received" &&
@@ -324,6 +410,22 @@ export default function FounderDashboard() {
           setEmployeeNotificationCount(0);
         },
       );
+
+      unsubscribeClients?.();
+      unsubscribeClients = onSnapshot(
+        collection(db, "clients"),
+        (snapshot) => {
+          setClients(
+            snapshot.docs
+              .map((item) => ({ id: item.id, ...item.data() }) as ClientRecord)
+              .filter((client) => !client.deletedAt),
+          );
+        },
+        (error) => {
+          console.error("Founder clients listener error:", error);
+          setClients([]);
+        },
+      );
     });
 
     return () => {
@@ -333,6 +435,7 @@ export default function FounderDashboard() {
       unsubscribeAttendance?.();
       unsubscribeLeaveRequests?.();
       unsubscribeNotifications?.();
+      unsubscribeClients?.();
     };
   }, []);
 
@@ -360,9 +463,9 @@ export default function FounderDashboard() {
     );
     const attendanceStatus = normalizeStatus(attendance?.status);
     const onLeave =
-      attendanceStatus === "LEAVE" || todayApprovedLeaveIds.includes(member.id);
+      attendanceStatus === "leave" || todayApprovedLeaveIds.includes(member.id);
     const present =
-      Boolean(attendance?.checkIn) && !onLeave && attendanceStatus !== "ABSENT";
+      Boolean(attendance?.checkIn) && !onLeave && attendanceStatus !== "absent";
 
     return {
       member,
@@ -377,6 +480,72 @@ export default function FounderDashboard() {
   const todayTasks = liveTasks.filter(
     (task) => getTaskDateKey(task) === getTodayKey() && isActiveTask(task),
   );
+  const visibleTasks = liveTasks
+    .filter((task) => {
+      const needle = searchQuery.trim().toLowerCase();
+      return (
+        needle &&
+        `${task.title || ""} ${task.assignedToName || ""}`
+          .toLowerCase()
+          .includes(needle)
+      );
+    })
+    .slice(0, 8);
+  const visibleUsers = users
+    .filter((member) => {
+      const needle = searchQuery.trim().toLowerCase();
+      return (
+        needle &&
+        `${member.name || ""} ${member.email || ""}`
+          .toLowerCase()
+          .includes(needle)
+      );
+    })
+    .slice(0, 8);
+  const visibleClients = clients
+    .filter((client) => {
+      const needle = searchQuery.trim().toLowerCase();
+      return (
+        needle &&
+        `${client.name || ""} ${client.company || ""} ${client.email || ""}`
+          .toLowerCase()
+          .includes(needle)
+      );
+    })
+    .slice(0, 8);
+  const todayAttendanceRows = todayAttendance.map((record) => ({
+    record,
+    member: users.find((item) => item.id === record.userId),
+    status: record.status || (record.checkIn ? "Present" : "Recorded"),
+  }));
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+      if (event.key === "Escape") {
+        setSearchOpen(false);
+        setProfileOpen(false);
+        setNotificationOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+  useEffect(() => {
+    const closeProfileMenu = (event: MouseEvent) => {
+      if (
+        event.target instanceof Node &&
+        !profileMenuRef.current?.contains(event.target)
+      ) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", closeProfileMenu);
+    return () => document.removeEventListener("mousedown", closeProfileMenu);
+  }, []);
   const presentCount = memberStats.filter((item) => item.present).length;
   const leaveCount = memberStats.filter((item) => item.onLeave).length;
   const absentCount = Math.max(0, users.length - presentCount - leaveCount);
@@ -395,27 +564,51 @@ export default function FounderDashboard() {
     ? Math.round((busiestCount / maxActiveTasks) * 100)
     : 0;
 
-  const recentActivities = liveTasks.slice(0, 4).map((task) => ({
-    icon:
-      normalizeStatus(task.status) === "COMPLETED" ? CheckCircle2 : FileText,
-    title: `${task.title || "Untitled task"} — ${normalizeStatus(task.status).toLowerCase()}`,
-    person: task.assignedToName || task.submittedByName || "Team task",
-    time: getTimestampMillis(task.updatedAt || task.createdAt)
-      ? new Date(
-          getTimestampMillis(task.updatedAt || task.createdAt),
-        ).toLocaleString("en-IN", {
-          day: "2-digit",
-          month: "short",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "Recent",
-  }));
+  const recentActivities = liveTasks.slice(0, 4).map((task) => {
+    const status = normalizeStatus(task.status);
+    const action =
+      status === "completed"
+        ? "Task completed"
+        : status === "submitted"
+          ? "Task submitted"
+          : status === "changes_requested"
+            ? "Changes requested"
+            : status === "in_progress"
+              ? "Task started"
+              : status === "approved"
+                ? "Task approved"
+                : "Task assigned";
+    const assignee =
+      task.assignedToName ||
+      users.find(
+        (member) =>
+          member.id === task.assignedTo ||
+          member.id === task.assignedToId ||
+          (Array.isArray(task.teamMemberIds) &&
+            task.teamMemberIds.includes(member.id)),
+      )?.name;
+    return {
+      icon: status === "completed" ? CheckCircle2 : FileText,
+      title: `${action}: ${task.title || "Untitled task"}`,
+      person: assignee || task.submittedByName || "Team task",
+      time: getTimestampMillis(task.updatedAt || task.createdAt)
+        ? new Date(
+            getTimestampMillis(task.updatedAt || task.createdAt),
+          ).toLocaleString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "Recent",
+    };
+  });
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      window.location.href = "/";
+      setProfileOpen(false);
+      router.push("/");
     } catch (error) {
       console.error("Logout error:", error);
     }
@@ -647,17 +840,21 @@ export default function FounderDashboard() {
 
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Search */}
-            <button className="hidden items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-xs text-[var(--brand-black)] transition hover:border-[var(--brand-border)] hover:text-[var(--brand-black)] sm:flex">
+            <button
+              onClick={() => setSearchOpen(true)}
+              aria-label="Search workspace"
+              className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-white p-2.5 text-xs text-[var(--brand-black)] transition hover:border-[var(--brand-border)] hover:text-[var(--brand-black)] sm:px-3 sm:py-2"
+            >
               <Search size={15} />
-              <span>Search</span>
-              <span className="ml-3 rounded-md border border-[var(--brand-border)] px-1.5 py-0.5 text-[9px]">
+              <span className="hidden sm:inline">Search</span>
+              <span className="ml-3 hidden rounded-md border border-[var(--brand-border)] px-1.5 py-0.5 text-[9px] sm:inline">
                 Ctrl K
               </span>
             </button>
 
             {/* Notifications */}
-            <Link
-              href="/founder/notifications"
+            <button
+              onClick={() => setNotificationOpen((open) => !open)}
               className="relative rounded-xl border border-[var(--brand-border)] bg-white p-2.5 text-[var(--brand-black)] transition hover:bg-[var(--brand-red-light)] hover:text-[var(--brand-black)]"
               aria-label="Notifications"
             >
@@ -666,28 +863,76 @@ export default function FounderDashboard() {
               {employeeNotificationCount > 0 && (
                 <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-red-400" />
               )}
-            </Link>
+            </button>
 
             {/* Profile */}
-            <button className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-white p-1.5 pr-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand-red)] text-xs font-bold">
-                A
-              </div>
-
-              <div className="hidden text-left sm:block">
-                <p className="text-xs font-semibold">Akash</p>
-
-                <p className="text-[9px] text-[var(--brand-medium-gray)]">
-                  Founder
-                </p>
-              </div>
-
-              <ChevronDown
-                size={14}
-                className="hidden text-[var(--brand-black)] sm:block"
-              />
-            </button>
+            <div ref={profileMenuRef} className="relative">
+              <button
+                onClick={() => setProfileOpen((open) => !open)}
+                aria-expanded={profileOpen}
+                aria-label="Open founder profile menu"
+                className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-white p-1.5 pr-2.5"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand-red)] text-xs font-bold">
+                  {founderName.charAt(0).toUpperCase()}
+                </div>
+                <div className="hidden text-left sm:block">
+                  <p className="text-xs font-semibold">{founderName}</p>
+                  <p className="text-[9px] text-[var(--brand-medium-gray)]">
+                    {founderRole}
+                  </p>
+                </div>
+                <ChevronDown
+                  size={14}
+                  className="hidden text-[var(--brand-black)] sm:block"
+                />
+              </button>
+              {profileOpen && (
+                <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-[var(--brand-border)] bg-white p-3 shadow-lg">
+                  <p className="truncate text-sm font-semibold">
+                    {founderName}
+                  </p>
+                  <p className="mt-1 truncate text-xs text-[var(--brand-medium-gray)]">
+                    {founderEmail || "Email unavailable"}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
+                    {founderRole}
+                  </p>
+                  <div className="my-2 border-t border-[var(--brand-border)]" />
+                  <Link
+                    href="/founder/settings"
+                    onClick={() => setProfileOpen(false)}
+                    className="block rounded-lg px-3 py-2 text-sm hover:bg-[var(--brand-red-light)]"
+                  >
+                    Profile / Account
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
+          {notificationOpen && (
+            <div className="absolute right-20 top-[68px] z-50 w-72 rounded-xl border border-[var(--brand-border)] bg-white p-4 shadow-lg">
+              <p className="font-semibold">Notifications</p>
+              <p className="mt-2 text-sm text-[var(--brand-medium-gray)]">
+                {employeeNotificationCount
+                  ? `${employeeNotificationCount} unread notification${employeeNotificationCount === 1 ? "" : "s"}.`
+                  : "No unread notifications."}
+              </p>
+              <Link
+                href="/founder/notifications"
+                onClick={() => setNotificationOpen(false)}
+                className="mt-3 block text-sm text-[var(--brand-red)]"
+              >
+                View all
+              </Link>
+            </div>
+          )}
         </header>
 
         {/* ===================================================
@@ -770,7 +1015,29 @@ export default function FounderDashboard() {
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.06 }}
-                  className="group relative overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-white p-4 transition hover:border-[var(--brand-border)] sm:p-5"
+                  onClick={() => {
+                    const routes: Record<string, string> = {
+                      "Team Members": "/founder/team",
+                      "Active Tasks": "/founder/tasks?filter=active",
+                      Overdue: "/founder/tasks?filter=overdue",
+                      "Today Attendance": "/founder/attendance",
+                    };
+                    router.push(routes[stat.label]);
+                  }}
+                  role="link"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      const routes: Record<string, string> = {
+                        "Team Members": "/founder/team",
+                        "Active Tasks": "/founder/tasks?filter=active",
+                        Overdue: "/founder/tasks?filter=overdue",
+                        "Today Attendance": "/founder/attendance",
+                      };
+                      router.push(routes[stat.label]);
+                    }
+                  }}
+                  className="group relative cursor-pointer overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-white p-4 transition hover:border-[var(--brand-red)] sm:p-5"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--brand-red)]/10 text-[var(--brand-red)]">
@@ -819,21 +1086,39 @@ export default function FounderDashboard() {
                   </p>
                 </div>
 
-                <button className="flex items-center gap-1 text-xs text-[var(--brand-red)] hover:text-[var(--brand-red)]">
+                <Link
+                  href="/founder/team"
+                  className="flex items-center gap-1 text-xs text-[var(--brand-red)] hover:text-[var(--brand-red)]"
+                >
                   View team
                   <ChevronRight size={14} />
-                </button>
+                </Link>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {memberStats.map(
                   ({ member, activeCount, present, onLeave }, index) => (
                     <motion.div
-                      key={member.name}
+                      key={member.id}
                       initial={{ opacity: 0, scale: 0.97 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: index * 0.04 }}
-                      className="rounded-xl border border-[var(--brand-border)] bg-white p-3"
+                      role="link"
+                      tabIndex={0}
+                      onClick={() =>
+                        router.push(
+                          `/founder/tasks?employee=${encodeURIComponent(member.id)}`,
+                        )
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          router.push(
+                            `/founder/tasks?employee=${encodeURIComponent(member.id)}`,
+                          );
+                        }
+                      }}
+                      className="cursor-pointer rounded-xl border border-[var(--brand-border)] bg-white p-3 transition hover:border-[var(--brand-red)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--brand-red)]"
                     >
                       <div className="flex items-center gap-3">
                         <div className="relative">
@@ -988,56 +1273,69 @@ export default function FounderDashboard() {
                   </p>
                 </div>
 
-                <button className="flex items-center gap-1 text-xs text-[var(--brand-red)] hover:text-[var(--brand-red)]">
+                <Link
+                  href="/founder/tasks"
+                  className="flex items-center gap-1 text-xs text-[var(--brand-red)] hover:text-[var(--brand-red)]"
+                >
                   View all
                   <ChevronRight size={14} />
-                </button>
+                </Link>
               </div>
 
               <div className="divide-y divide-[var(--brand-border)]">
-                {todayTasks.slice(0, 4).map((task) => (
-                  <div
-                    key={task.id}
-                    className="group flex items-center gap-3 p-4 transition hover:bg-[var(--brand-red-light)] sm:p-5"
-                  >
-                    <div className="hidden h-9 w-9 items-center justify-center rounded-xl bg-white text-[var(--brand-black)] sm:flex">
-                      <Target size={16} />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-xs font-semibold sm:text-sm">
-                          {task.title}
-                        </p>
-
-                        <span
-                          className={`rounded-md border px-1.5 py-0.5 text-[8px] font-medium ${getPriorityClass(
-                            task.priority,
-                          )}`}
-                        >
-                          {task.priority}
-                        </span>
+                {(todayTasks.length
+                  ? todayTasks
+                  : liveTasks.filter(isActiveTask).slice(0, 4)
+                )
+                  .slice(0, 4)
+                  .map((task) => (
+                    <div
+                      key={task.id}
+                      className="group flex items-center gap-3 p-4 transition hover:bg-[var(--brand-red-light)] sm:p-5"
+                    >
+                      <div className="hidden h-9 w-9 items-center justify-center rounded-xl bg-white text-[var(--brand-black)] sm:flex">
+                        <Target size={16} />
                       </div>
 
-                      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-[var(--brand-black)]">
-                        <span>{task.assignedToName || "Team task"}</span>
-                        <span>•</span>
-                        <span>{task.department || "—"}</span>
-                        <span>•</span>
-                        <span>{task.deadline}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-xs font-semibold sm:text-sm">
+                            {task.title}
+                          </p>
+
+                          <span
+                            className={`rounded-md border px-1.5 py-0.5 text-[8px] font-medium ${getPriorityClass(
+                              task.priority,
+                            )}`}
+                          >
+                            {task.priority}
+                          </span>
+                        </div>
+
+                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-[var(--brand-black)]">
+                          <span>{task.assignedToName || "Team task"}</span>
+                          <span>•</span>
+                          <span>{task.department || "—"}</span>
+                          <span>•</span>
+                          <span>{task.deadline}</span>
+                        </div>
                       </div>
+
+                      <span className="hidden rounded-lg bg-white px-2.5 py-1.5 text-[9px] text-[var(--brand-black)] sm:block">
+                        {task.status}
+                      </span>
+
+                      <ChevronRight
+                        size={15}
+                        className="text-[var(--brand-black)] transition group-hover:text-[var(--brand-black)]"
+                      />
                     </div>
-
-                    <span className="hidden rounded-lg bg-white px-2.5 py-1.5 text-[9px] text-[var(--brand-black)] sm:block">
-                      {task.status}
-                    </span>
-
-                    <ChevronRight
-                      size={15}
-                      className="text-[var(--brand-black)] transition group-hover:text-[var(--brand-black)]"
-                    />
-                  </div>
-                ))}
+                  ))}
+                {!todayTasks.length && !liveTasks.some(isActiveTask) && (
+                  <p className="p-5 text-sm text-[var(--brand-medium-gray)]">
+                    No tasks requiring attention.
+                  </p>
+                )}
               </div>
             </section>
 
@@ -1106,9 +1404,12 @@ export default function FounderDashboard() {
                   </p>
                 </div>
 
-                <button className="text-xs text-[var(--brand-red)] hover:text-[var(--brand-red)]">
+                <Link
+                  href="/founder/attendance"
+                  className="text-xs text-[var(--brand-red)] hover:text-[var(--brand-red)]"
+                >
                   View report
-                </button>
+                </Link>
               </div>
 
               <div className="mt-5 grid grid-cols-3 gap-3">
@@ -1138,6 +1439,47 @@ export default function FounderDashboard() {
                     Absent
                   </p>
                 </div>
+              </div>
+
+              <div className="mt-4 divide-y divide-[var(--brand-border)]">
+                {todayAttendanceRows.length ? (
+                  todayAttendanceRows
+                    .slice(0, 5)
+                    .map(({ member, record, status }) => (
+                      <div
+                        key={record.id}
+                        className="flex items-start justify-between gap-3 py-2 text-xs"
+                      >
+                        <span>
+                          {record.userName ||
+                            member?.name ||
+                            member?.email ||
+                            "Unknown employee"}
+                          <span className="block text-[10px] text-[var(--brand-medium-gray)]">
+                            {record.date || getTodayKey()}
+                            {record.markedByName ||
+                            record.createdByName ||
+                            record.markedBy
+                              ? ` · Recorded by ${record.markedByName || record.createdByName || record.markedBy}`
+                              : ""}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right text-[var(--brand-medium-gray)]">
+                          {status}
+                          {record.checkIn
+                            ? ` · In ${new Date(getTimestampMillis(record.checkIn)).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`
+                            : ""}
+                          {record.checkOut
+                            ? ` · Out ${new Date(getTimestampMillis(record.checkOut)).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`
+                            : ""}
+                        </span>
+                      </div>
+                    ))
+                ) : (
+                  <p className="py-2 text-xs text-[var(--brand-medium-gray)]">
+                    No attendance records for today.
+                  </p>
+                )}
               </div>
 
               <div className="mt-5">
@@ -1177,35 +1519,44 @@ export default function FounderDashboard() {
               </div>
 
               <div className="mt-5 space-y-4">
-                {recentActivities.map((activity, index) => {
-                  const Icon = activity.icon;
+                {recentActivities.length ? (
+                  recentActivities.map((activity, index) => {
+                    const Icon = activity.icon;
 
-                  return (
-                    <div key={index} className="flex gap-3">
-                      <div className="relative">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand-red)]/10">
-                          <Icon size={15} className="text-[var(--brand-red)]" />
+                    return (
+                      <div key={index} className="flex gap-3">
+                        <div className="relative">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand-red)]/10">
+                            <Icon
+                              size={15}
+                              className="text-[var(--brand-red)]"
+                            />
+                          </div>
+
+                          {index !== recentActivities.length - 1 && (
+                            <div className="absolute left-1/2 top-8 h-5 w-px -translate-x-1/2 bg-white" />
+                          )}
                         </div>
 
-                        {index !== recentActivities.length - 1 && (
-                          <div className="absolute left-1/2 top-8 h-5 w-px -translate-x-1/2 bg-white" />
-                        )}
-                      </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-[var(--brand-medium-gray)]">
+                            {activity.title}
+                          </p>
 
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs text-[var(--brand-medium-gray)]">
-                          {activity.title}
-                        </p>
-
-                        <div className="mt-1 flex gap-2 text-[9px] text-[var(--brand-black)]">
-                          <span>{activity.person}</span>
-                          <span>•</span>
-                          <span>{activity.time}</span>
+                          <div className="mt-1 flex gap-2 text-[9px] text-[var(--brand-black)]">
+                            <span>{activity.person}</span>
+                            <span>•</span>
+                            <span>{activity.time}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-[var(--brand-medium-gray)]">
+                    No recent activity.
+                  </p>
+                )}
               </div>
             </section>
           </div>
@@ -1224,6 +1575,100 @@ export default function FounderDashboard() {
           </footer>
         </div>
       </div>
+      {searchOpen && (
+        <div
+          className="fixed inset-0 z-[80] flex items-start justify-center bg-black/30 p-4 pt-[15vh]"
+          onClick={() => setSearchOpen(false)}
+        >
+          <div
+            className="w-full max-w-xl rounded-2xl border border-[var(--brand-border)] bg-white p-4 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <Search size={18} />
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search team members and tasks…"
+                className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
+              />
+              <button
+                onClick={() => setSearchOpen(false)}
+                aria-label="Close search"
+              >
+                <X size={17} />
+              </button>
+            </div>
+            <div className="mt-3 max-h-80 overflow-auto border-t border-[var(--brand-border)] pt-2">
+              {searchQuery.trim() ? (
+                <>
+                  {visibleUsers.map((member) => (
+                    <button
+                      key={`user-${member.id}`}
+                      onClick={() => {
+                        setSearchOpen(false);
+                        router.push("/founder/team");
+                      }}
+                      className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-[var(--brand-red-light)]"
+                    >
+                      {member.name || member.email}
+                      <span className="ml-2 text-xs text-[var(--brand-medium-gray)]">
+                        Team member
+                      </span>
+                    </button>
+                  ))}
+                  {visibleTasks.map((task) => (
+                    <button
+                      key={`task-${task.id}`}
+                      onClick={() => {
+                        setSearchOpen(false);
+                        router.push(
+                          `/founder/tasks?taskId=${encodeURIComponent(task.id)}`,
+                        );
+                      }}
+                      className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-[var(--brand-red-light)]"
+                    >
+                      {task.title || "Untitled task"}
+                      <span className="ml-2 text-xs text-[var(--brand-medium-gray)]">
+                        Task · {task.assignedToName || "Unassigned"}
+                      </span>
+                    </button>
+                  ))}
+                  {visibleClients.map((client) => (
+                    <button
+                      key={`client-${client.id}`}
+                      onClick={() => {
+                        setSearchOpen(false);
+                        router.push(
+                          `/founder/clients?clientId=${encodeURIComponent(client.id)}`,
+                        );
+                      }}
+                      className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-[var(--brand-red-light)]"
+                    >
+                      {client.name || client.company || "Unnamed client"}
+                      <span className="ml-2 text-xs text-[var(--brand-medium-gray)]">
+                        Client
+                      </span>
+                    </button>
+                  ))}
+                  {!visibleUsers.length &&
+                    !visibleTasks.length &&
+                    !visibleClients.length && (
+                      <p className="px-3 py-4 text-sm text-[var(--brand-medium-gray)]">
+                        No matching workspace records.
+                      </p>
+                    )}
+                </>
+              ) : (
+                <p className="px-3 py-4 text-sm text-[var(--brand-medium-gray)]">
+                  Search team members, tasks and clients.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

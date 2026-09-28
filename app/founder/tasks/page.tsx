@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   AlertCircle,
   ArrowLeft,
@@ -15,8 +16,8 @@ import {
   Plus,
   RefreshCw,
   Search,
-  Sparkles,
   Trash2,
+  Sparkles,
   User,
   Users,
   X,
@@ -38,9 +39,11 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  writeBatch,
 } from "firebase/firestore";
 
 import { auth, db } from "@/lib/firebase";
+import ClientSelector from "@/app/components/client-selector";
 
 type UserProfile = {
   id: string;
@@ -56,7 +59,12 @@ type Client = {
   name?: string;
   company?: string;
   active?: boolean;
+  contactPerson?: string;
+  accountStatus?: string;
+  deletedAt?: unknown;
 };
+
+type ClientWork = { id: string; clientId: string; name: string; status?: string };
 
 type Task = {
   id: string;
@@ -71,6 +79,7 @@ type Task = {
   clientId?: string;
   client?: string;
   clientName?: string;
+  workId?: string | null;
 
   department?: string;
   taskType?: string;
@@ -96,13 +105,13 @@ type Task = {
   submissionNote?: string;
   submittedBy?: string;
   submittedByName?: string;
-  submissionAt?: any;
+  submissionAt?: unknown;
   feedback?: string;
   reviewComment?: string;
-  approvedAt?: any;
+  approvedAt?: unknown;
   approvedBy?: string;
   approvedByName?: string;
-  reviewedAt?: any;
+  reviewedAt?: unknown;
   reviewedBy?: string;
   reviewedByName?: string;
 
@@ -135,8 +144,8 @@ type Task = {
   deleteRequestStatus?: "none" | "pending" | "approved" | "rejected";
   deleteRequestedBy?: string;
   deleteRequestedByName?: string;
-  deleteRequestedAt?: any;
-  deleteReviewedAt?: any;
+  deleteRequestedAt?: unknown;
+  deleteReviewedAt?: unknown;
   deleteReviewedBy?: string;
   deleteReviewedByName?: string;
   deleteReviewMessage?: string;
@@ -144,8 +153,19 @@ type Task = {
   createdBy?: string;
   createdByName?: string;
 
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+  deleted?: boolean;
+  isDeleted?: boolean;
+  deletedAt?: unknown;
+};
+
+type FounderSession = {
+  uid: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  active?: boolean;
 };
 
 const DEPARTMENTS = ["Management", "Editor", "Content", "Development"];
@@ -178,6 +198,41 @@ function normalizeStatus(value?: string) {
     .trim();
 }
 
+function isActiveTask(task: Task) {
+  return (
+    task.deleted !== true &&
+    task.isDeleted !== true &&
+    !task.deletedAt &&
+    [
+      "todo",
+      "in_progress",
+      "submitted",
+      "changes_requested",
+      "approved",
+    ].includes(normalizeStatus(task.status))
+  );
+}
+
+function isTaskOverdue(task: Task) {
+  const raw = task.deadlineDate || task.deadline;
+  if (
+    !raw ||
+    isFinalTaskStatus(task.status) ||
+    task.deleted === true ||
+    task.isDeleted === true ||
+    task.deletedAt
+  )
+    return false;
+  const rawString = String(raw);
+  const deadlineValue = rawString.includes("T")
+    ? rawString
+    : task.deadlineTime
+      ? `${rawString}T${task.deadlineTime}`
+      : `${rawString}T23:59:59`;
+  const deadline = new Date(deadlineValue);
+  return !Number.isNaN(deadline.getTime()) && deadline.getTime() < Date.now();
+}
+
 function isFinalTaskStatus(status?: string) {
   return normalizeStatus(status) === "completed";
 }
@@ -190,18 +245,23 @@ function isChangesTask(status?: string) {
   return ["changes_requested", "changes"].includes(normalizeStatus(status));
 }
 
-function formatDateTime(value?: any) {
+function formatDateTime(value?: unknown) {
   if (!value) return "";
 
   try {
     const date =
-      typeof value?.toDate === "function"
-        ? value.toDate()
-        : value instanceof Date
-          ? value
-          : new Date(value);
+      value instanceof Date
+        ? value
+        : typeof value === "object" &&
+            value !== null &&
+            "toDate" in value &&
+            typeof value.toDate === "function"
+          ? value.toDate()
+          : typeof value === "string" || typeof value === "number"
+            ? new Date(value)
+            : null;
 
-    if (Number.isNaN(date.getTime())) return "";
+    if (!date || Number.isNaN(date.getTime())) return "";
 
     return date.toLocaleString("en-IN", {
       day: "2-digit",
@@ -213,6 +273,27 @@ function formatDateTime(value?: any) {
   } catch {
     return "";
   }
+}
+
+function getDateMillis(value: unknown) {
+  if (value instanceof Date) return value.getTime();
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "toMillis" in value &&
+    typeof value.toMillis === "function"
+  )
+    return value.toMillis();
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "toDate" in value &&
+    typeof value.toDate === "function"
+  )
+    return value.toDate().getTime();
+  if (typeof value === "string" || typeof value === "number")
+    return new Date(value).getTime();
+  return 0;
 }
 
 function formatDate(dateValue?: string) {
@@ -270,7 +351,7 @@ function getStatusClass(status?: string) {
 }
 
 export default function FounderTasksPage() {
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<FounderSession | null>(null);
 
   const [authorized, setAuthorized] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -278,16 +359,25 @@ export default function FounderTasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [clientWork, setClientWork] = useState<ClientWork[]>([]);
 
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [priorityFilter, setPriorityFilter] = useState("ALL");
+  const [employeeFilter, setEmployeeFilter] = useState("");
+  const [clientFilter, setClientFilter] = useState("");
+  const [workFilter, setWorkFilter] = useState("");
+  const [taskViewFilter, setTaskViewFilter] = useState<
+    "all" | "active" | "overdue"
+  >("all");
 
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+  const [deletingTask, setDeletingTask] = useState(false);
 
   const [creating, setCreating] = useState(false);
 
@@ -325,6 +415,7 @@ export default function FounderTasksPage() {
     description: "",
     assignedTo: "",
     clientId: "",
+    workId: "",
     department: "Development",
     taskType: "Website Development",
     priority: "MEDIUM",
@@ -338,19 +429,47 @@ export default function FounderTasksPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
 
-    if (params.get("create") !== "1") return;
+    const requestedFilter = params.get("filter");
+    const requestedEmployee = params.get("employee") || "";
+    if (
+      params.get("create") !== "1" &&
+      !requestedEmployee &&
+      requestedFilter !== "active" &&
+      requestedFilter !== "overdue"
+    )
+      return;
 
     const frame = window.requestAnimationFrame(() => {
-      resetForm();
-      setShowCreateModal(true);
-      window.history.replaceState({}, "", "/founder/tasks");
+      if (requestedFilter === "active" || requestedFilter === "overdue") {
+        setTaskViewFilter(requestedFilter);
+      }
+      if (requestedEmployee) setEmployeeFilter(requestedEmployee);
+      if (params.get("create") === "1") {
+        resetForm();
+        setShowCreateModal(true);
+        window.history.replaceState({}, "", "/founder/tasks");
+      }
     });
 
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
+  useEffect(() => {
+    const taskId = new URLSearchParams(window.location.search).get("taskId");
+    if (taskId) {
+      const findTask = () => {
+        const matched = tasks.find((task) => task.id === taskId);
+        if (matched) setSelectedTask(matched);
+      };
+      findTask();
+    }
+  }, [tasks]);
+
   const selectedSingleUser =
     users.find((user) => user.id === form.assignedTo) || null;
+  const selectedTaskClient = selectedTask?.clientId
+    ? clients.find((client) => client.id === selectedTask.clientId)
+    : clients.find((client) => client.name === (selectedTask?.clientName || selectedTask?.client) || client.company === (selectedTask?.clientName || selectedTask?.client));
 
   const selectedTeamMembers = users.filter((user) =>
     teamMemberIds.includes(user.id),
@@ -363,7 +482,17 @@ export default function FounderTasksPage() {
    */
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (process.env.NODE_ENV === "development") {
+        const currentUser = auth.currentUser;
+        console.info("[Founder tasks] Firebase Auth user", {
+          uid: currentUser?.uid,
+          email: currentUser?.email,
+        });
+      }
       if (!user) {
+        if (process.env.NODE_ENV === "development") {
+          console.warn("[Founder tasks] Firebase Auth has no signed-in user.");
+        }
         setAuthorized(false);
         setLoading(false);
         setCheckingAuth(false);
@@ -374,6 +503,16 @@ export default function FounderTasksPage() {
         const userRef = doc(db, "users", user.uid);
 
         const userSnap = await getDoc(userRef);
+        const userData = userSnap.exists() ? userSnap.data() : null;
+
+        if (process.env.NODE_ENV === "development") {
+          console.info("[Founder tasks] Founder profile authorization", {
+            uid: user.uid,
+            exists: userSnap.exists(),
+            role: userData?.role,
+            active: userData?.active,
+          });
+        }
 
         if (!userSnap.exists()) {
           setAuthorized(false);
@@ -382,9 +521,7 @@ export default function FounderTasksPage() {
           return;
         }
 
-        const userData = userSnap.data();
-
-        if (userData.role !== "founder" || userData.active !== true) {
+        if (userData?.role !== "founder" || userData.active !== true) {
           setAuthorized(false);
           setLoading(false);
           setCheckingAuth(false);
@@ -427,9 +564,9 @@ export default function FounderTasksPage() {
         })) as Task[];
 
         taskData.sort((a, b) => {
-          const aTime = a.createdAt?.toMillis?.() || 0;
+          const aTime = getDateMillis(a.createdAt);
 
-          const bTime = b.createdAt?.toMillis?.() || 0;
+          const bTime = getDateMillis(b.createdAt);
 
           return bTime - aTime;
         });
@@ -437,7 +574,11 @@ export default function FounderTasksPage() {
         setTasks(taskData);
       },
       (error) => {
-        console.error("Tasks listener error:", error);
+        console.error("[Founder tasks] Firestore read denied/failed: tasks", {
+          uid: auth.currentUser?.uid,
+          code: error.code,
+          message: error.message,
+        });
       },
     );
 
@@ -455,11 +596,14 @@ export default function FounderTasksPage() {
         const usersSnapshot = await getDocs(collection(db, "users"));
 
         const data: UserProfile[] = usersSnapshot.docs
-          .map((item) => ({
-            id: item.id,
-            ...item.data(),
-          }))
-          .filter((item: any) => {
+          .map(
+            (item) =>
+              ({
+                id: item.id,
+                ...item.data(),
+              }) as UserProfile,
+          )
+          .filter((item) => {
             return (
               item.active === true &&
               (item.role === "employee" || item.role === "intern")
@@ -472,7 +616,10 @@ export default function FounderTasksPage() {
 
         setUsers(data);
       } catch (error) {
-        console.error("Failed to load team:", error);
+        console.error("[Founder tasks] Firestore read denied/failed: users", {
+          uid: auth.currentUser?.uid,
+          error,
+        });
       }
     }
 
@@ -494,9 +641,22 @@ export default function FounderTasksPage() {
           ...item.data(),
         })) as Client[];
 
-        setClients(data);
+        setClients(data.filter((client) => !client.deletedAt && client.active !== false && client.accountStatus !== "Archived"));
+        try {
+          const workSnapshot = await getDocs(collection(db, "clientWork"));
+          setClientWork(workSnapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as ClientWork));
+        } catch (error) {
+          setClientWork([]);
+          console.error(
+            "[Founder tasks] Firestore read denied/failed: clientWork",
+            { uid: auth.currentUser?.uid, error },
+          );
+        }
       } catch (error) {
-        console.error("Failed to load clients:", error);
+        console.error("[Founder tasks] Firestore read denied/failed: clients", {
+          uid: auth.currentUser?.uid,
+          error,
+        });
       }
     }
 
@@ -532,18 +692,35 @@ export default function FounderTasksPage() {
       const matchesPriority =
         priorityFilter === "ALL" || task.priority === priorityFilter;
 
-      return matchesSearch && matchesStatus && matchesPriority;
+      const matchesEmployee =
+        !employeeFilter ||
+        task.assignedTo === employeeFilter ||
+        task.assignedToId === employeeFilter ||
+        task.teamLeadId === employeeFilter ||
+        (task.teamMemberIds || []).includes(employeeFilter) ||
+        (task.teamMembers || []).some((member) => member.id === employeeFilter);
+
+      const matchesView =
+        taskViewFilter === "all" ||
+        (taskViewFilter === "active" && isActiveTask(task)) ||
+        (taskViewFilter === "overdue" && isTaskOverdue(task));
+
+      const selectedFilterClient = clients.find((client) => client.id === clientFilter);
+      const matchesClient = !clientFilter || task.clientId === clientFilter || (!task.clientId && Boolean(selectedFilterClient && [selectedFilterClient.name, selectedFilterClient.company].includes(task.clientName || task.client || "")));
+      const matchesWork = !workFilter || task.workId === workFilter;
+      return matchesSearch && matchesStatus && matchesPriority && matchesEmployee && matchesView && matchesClient && matchesWork;
     });
-  }, [tasks, search, statusFilter, priorityFilter]);
+  }, [tasks, clients, search, statusFilter, priorityFilter, employeeFilter, taskViewFilter, clientFilter, workFilter]);
+
+  const worksForSelectedClient = clientWork.filter((work) => work.clientId === form.clientId);
+  const worksForFilterClient = clientWork.filter((work) => work.clientId === clientFilter);
 
   /*
    * STATISTICS
    */
   const totalTasks = tasks.length;
 
-  const activeTasks = tasks.filter((task) =>
-    ["in_progress", "todo"].includes(normalizeStatus(task.status)),
-  ).length;
+  const activeTasks = tasks.filter((task) => isActiveTask(task)).length;
 
   const reviewTasks = tasks.filter((task) =>
     isSubmittedTask(task.status),
@@ -555,21 +732,7 @@ export default function FounderTasksPage() {
 
   const urgentTasks = tasks.filter((task) => task.priority === "URGENT").length;
 
-  const overdueTasks = tasks.filter((task) => {
-    if (!task.deadline && !task.deadlineDate) {
-      return false;
-    }
-
-    if (isFinalTaskStatus(task.status)) {
-      return false;
-    }
-
-    const deadlineString = task.deadline || task.deadlineDate;
-
-    if (!deadlineString) return false;
-
-    return new Date(deadlineString).getTime() < Date.now();
-  }).length;
+  const overdueTasks = tasks.filter(isTaskOverdue).length;
 
   /*
    * RESET FORM
@@ -586,6 +749,7 @@ export default function FounderTasksPage() {
       description: "",
       assignedTo: "",
       clientId: "",
+      workId: "",
       department: "Development",
       taskType: "Website Development",
       priority: "MEDIUM",
@@ -667,7 +831,7 @@ export default function FounderTasksPage() {
       return;
     }
 
-    const selectedClient = clients.find(
+  const selectedClient = clients.find(
       (client) => client.id === form.clientId,
     );
 
@@ -711,6 +875,21 @@ export default function FounderTasksPage() {
     setCreating(true);
 
     try {
+      if (!form.clientId && form.workId) {
+        throw new Error("A work item must be linked to a client.");
+      }
+      if (form.clientId) {
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) throw new Error("Founder login required.");
+        const validation = await fetch("/api/client-work/validate-task-link", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId: form.clientId, workId: form.workId || null }),
+          cache: "no-store",
+        });
+        const validationBody = await validation.json().catch(() => ({}));
+        if (!validation.ok) throw new Error(validationBody.error || "Unable to validate the selected client and work.");
+      }
       const deadline = `${form.deadlineDate}T${form.deadlineTime}`;
 
       const primaryAssignee =
@@ -725,7 +904,7 @@ export default function FounderTasksPage() {
           ? users.find((user) => user.id === submitterId) || null
           : null;
 
-      const taskData: Record<string, any> = {
+      const taskData: Record<string, unknown> = {
         title: form.title.trim(),
         description: form.description.trim(),
 
@@ -778,6 +957,7 @@ export default function FounderTasksPage() {
               : null,
 
         clientId: form.clientId || null,
+        workId: form.clientId && form.workId ? form.workId : null,
         clientName: selectedClient
           ? selectedClient.name || selectedClient.company || ""
           : "",
@@ -1241,6 +1421,7 @@ export default function FounderTasksPage() {
    */
   useEffect(() => {
     if (!authorized || !currentUser) return;
+    const founder = currentUser;
 
     async function checkDeadlines() {
       const now = Date.now();
@@ -1278,15 +1459,15 @@ export default function FounderTasksPage() {
 
         if (!kind) continue;
 
-        const notificationId = `deadline_${task.id}_${kind}_${currentUser.uid}`;
+        const notificationId = `deadline_${task.id}_${kind}_${founder.uid}`;
 
         try {
           await setDoc(
             doc(db, "notifications", notificationId),
             {
-              userId: currentUser.uid,
-              recipientId: currentUser.uid,
-              senderId: currentUser.uid,
+              userId: founder.uid,
+              recipientId: founder.uid,
+              senderId: founder.uid,
               senderName: "The Ant Media System",
               title,
               message: notificationMessage,
@@ -1339,32 +1520,24 @@ export default function FounderTasksPage() {
       permanentlyDeleted: false,
     };
 
-    const recycleRef = await addDoc(
-      collection(db, "recycleBinTasks"),
-      recyclePayload,
-    );
-
-    await deleteDoc(doc(db, "tasks", task.id));
-
+    const recycleRef = doc(collection(db, "recycleBinTasks"));
+    const batch = writeBatch(db);
+    batch.set(recycleRef, recyclePayload);
+    batch.delete(doc(db, "tasks", task.id));
+    await batch.commit();
     return recycleRef.id;
   }
 
-  async function handleDeleteTask(task: Task) {
-    const normalized = normalizeStatus(task.status);
-
-    if (normalized !== "approved" && normalized !== "completed") {
-      alert(
-        "Delete Task is available only after the Founder approves the work.",
-      );
+  async function handleDeleteTask(task: Task, alreadyConfirmed = false) {
+    if (
+      !alreadyConfirmed &&
+      !window.confirm(
+        `Move "${task.title || "Untitled task"}" to the Recycle Bin?`,
+      )
+    )
       return;
-    }
-
-    const confirmed = window.confirm(
-      `Move "${task.title || "Untitled task"}" to the Recycle Bin?`,
-    );
-
-    if (!confirmed) return;
-
+    setDeletingTask(true);
+    setErrorMessage("");
     try {
       const recycleId = await moveTaskToRecycleBin(
         task,
@@ -1376,13 +1549,17 @@ export default function FounderTasksPage() {
       );
 
       console.info("Task moved to founder recycle bin:", recycleId);
+      setTasks((current) => current.filter((item) => item.id !== task.id));
       setSelectedTask(null);
-      alert("Task moved to the Founder Recycle Bin.");
+      setTaskToDelete(null);
+      setMessage("Task moved to the Founder Recycle Bin.");
     } catch (error) {
       console.error("Delete task / recycle bin error:", error);
-      alert(
+      setErrorMessage(
         "Unable to move the task to the Recycle Bin. The original task was kept safe.",
       );
+    } finally {
+      setDeletingTask(false);
     }
   }
 
@@ -1810,6 +1987,39 @@ export default function FounderTasksPage() {
             </div>
 
             <select
+              aria-label="Filter tasks by employee"
+              value={employeeFilter}
+              onChange={(event) => setEmployeeFilter(event.target.value)}
+              className="h-12 min-w-[180px] rounded-xl border border-[var(--brand-border)] bg-white px-4 text-sm text-[var(--brand-black)] outline-none"
+            >
+              <option value="">All employees</option>
+              {users.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.name || employee.email || "Team member"}
+                </option>
+              ))}
+            </select>
+
+              <select
+                value={taskViewFilter}
+              onChange={(event) =>
+                setTaskViewFilter(
+                  event.target.value as "all" | "active" | "overdue",
+                )
+              }
+              className="h-12 min-w-[160px] rounded-xl border border-[var(--brand-border)] bg-white px-4 text-sm text-[var(--brand-black)] outline-none"
+            >
+              <option value="all">All work</option>
+              <option value="active">Active work</option>
+              <option value="overdue">Overdue work</option>
+            </select>
+
+            <div className="min-w-[220px] flex-1 lg:max-w-[280px]">
+              <ClientSelector clients={clients} value={clientFilter} onChange={(value) => { setClientFilter(value); setWorkFilter(""); }} placeholder="All clients" clearLabel="All clients" />
+            </div>
+            {clientFilter && <select value={workFilter} onChange={(event) => setWorkFilter(event.target.value)} className="h-12 min-w-[200px] rounded-xl border border-[var(--brand-border)] bg-white px-4 text-sm"><option value="">All work</option>{worksForFilterClient.map((work) => <option key={work.id} value={work.id}>{work.name}</option>)}</select>}
+
+            <select
               value={priorityFilter}
               onChange={(event) => setPriorityFilter(event.target.value)}
               className="h-12 min-w-[180px] rounded-xl border border-[var(--brand-border)] bg-white px-4 text-sm text-[var(--brand-black)] outline-none"
@@ -1830,6 +2040,11 @@ export default function FounderTasksPage() {
                 setSearch("");
                 setStatusFilter("ALL");
                 setPriorityFilter("ALL");
+                setEmployeeFilter("");
+                setTaskViewFilter("all");
+                setClientFilter("");
+                setWorkFilter("");
+                window.history.replaceState({}, "", "/founder/tasks");
               }}
               className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[var(--brand-border)] bg-white px-5 text-sm font-medium text-[var(--brand-black)] transition hover:bg-[var(--brand-red-light)]"
             >
@@ -1884,99 +2099,163 @@ export default function FounderTasksPage() {
           ) : (
             <div className="divide-y divide-[var(--brand-border)]">
               {filteredTasks.map((task) => (
-                <button
+                <div
                   key={task.id}
-                  onClick={() => setSelectedTask(task)}
-                  className="group block w-full p-5 text-left transition hover:bg-[var(--brand-red-light)] sm:p-6"
+                  className="group flex w-full items-stretch gap-3 p-5 text-left transition hover:bg-[var(--brand-red-light)] sm:p-6"
                 >
-                  <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="text-base font-semibold text-[var(--brand-black)]">
-                          {task.title || "Untitled task"}
-                        </h4>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedTask(task)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedTask(task);
+                      }
+                    }}
+                    className="min-w-0 flex-1 cursor-pointer text-left"
+                  >
+                    <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-base font-semibold text-[var(--brand-black)]">
+                            {task.title || "Untitled task"}
+                          </h4>
 
-                        <span
-                          className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${getPriorityClass(
-                            task.priority,
-                          )}`}
-                        >
-                          {task.priority || "MEDIUM"}
-                        </span>
-
-                        <span
-                          className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${getStatusClass(
-                            task.status,
-                          )}`}
-                        >
-                          {task.status || "TO DO"}
-                        </span>
-
-                        {task.deleteRequestStatus === "pending" && (
-                          <span className="rounded-full border border-orange-500/25 bg-orange-500/10 px-2.5 py-1 text-[10px] font-semibold text-orange-700">
-                            DELETE REQUEST
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${getPriorityClass(
+                              task.priority,
+                            )}`}
+                          >
+                            {task.priority || "MEDIUM"}
                           </span>
-                        )}
 
-                        {task.deleteRequestStatus === "approved" && (
-                          <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
-                            DELETE APPROVED
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${getStatusClass(
+                              task.status,
+                            )}`}
+                          >
+                            {task.status || "TO DO"}
                           </span>
-                        )}
+
+                          {task.deleteRequestStatus === "pending" && (
+                            <span className="rounded-full border border-orange-500/25 bg-orange-500/10 px-2.5 py-1 text-[10px] font-semibold text-orange-700">
+                              DELETE REQUEST
+                            </span>
+                          )}
+
+                          {task.deleteRequestStatus === "approved" && (
+                            <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
+                              DELETE APPROVED
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="mt-2 line-clamp-2 max-w-3xl text-sm leading-6 text-[var(--brand-medium-gray)]">
+                          {task.description || "No description provided."}
+                        </p>
+
+                        <div className="mt-4 flex flex-wrap gap-4 text-xs text-[var(--brand-black)]">
+                          <span className="flex items-center gap-1.5">
+                            <User size={13} />
+                            {task.assignmentType === "team"
+                              ? `Team · ${task.teamMemberIds?.length || 0} members`
+                              : task.assignedToName || "Unassigned"}
+                          </span>
+
+                          <span className="flex items-center gap-1.5">
+                            <Users size={13} />
+                            {task.department || "Management"}
+                          </span>
+
+                          <span className="flex items-center gap-1.5">
+                            <Calendar size={13} />
+                            {formatDate(task.deadlineDate || task.deadline)}
+                          </span>
+
+                      {task.clientName && <span>{task.clientName}</span>}
+                          {task.workId && <span>{clientWork.find((work) => work.id === task.workId)?.name || "Client work"}</span>}
+                        </div>
                       </div>
 
-                      <p className="mt-2 line-clamp-2 max-w-3xl text-sm leading-6 text-[var(--brand-medium-gray)]">
-                        {task.description || "No description provided."}
-                      </p>
-
-                      <div className="mt-4 flex flex-wrap gap-4 text-xs text-[var(--brand-black)]">
-                        <span className="flex items-center gap-1.5">
-                          <User size={13} />
-                          {task.assignmentType === "team"
-                            ? `Team · ${task.teamMemberIds?.length || 0} members`
-                            : task.assignedToName || "Unassigned"}
-                        </span>
-
-                        <span className="flex items-center gap-1.5">
-                          <Users size={13} />
-                          {task.department || "Management"}
-                        </span>
-
-                        <span className="flex items-center gap-1.5">
-                          <Calendar size={13} />
-                          {formatDate(task.deadlineDate || task.deadline)}
-                        </span>
-
-                        {task.clientName && <span>{task.clientName}</span>}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      {task.calendarReminder && (
-                        <span className="flex items-center gap-1.5 rounded-lg border border-[var(--brand-red-secondary)]/20 bg-[var(--brand-red)]/10 px-3 py-2 text-xs text-[var(--brand-red)]">
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            window.location.href = `/founder/calendar?taskId=${encodeURIComponent(task.id)}`;
+                          }}
+                          className="flex items-center gap-1.5 rounded-lg border border-[var(--brand-red-secondary)]/20 bg-[var(--brand-red)]/10 px-3 py-2 text-xs text-[var(--brand-red)] hover:bg-[var(--brand-red)]/15"
+                        >
                           <Calendar size={13} />
                           Calendar
-                        </span>
-                      )}
+                        </button>
 
-                      {task.referenceDriveUrl && (
-                        <span className="flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
-                          <FileText size={13} />
-                          Drive reference
-                        </span>
-                      )}
+                        {task.referenceDriveUrl && (
+                          <span className="flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700">
+                            <FileText size={13} />
+                            Drive reference
+                          </span>
+                        )}
 
-                      <span className="text-[var(--brand-black)] transition group-hover:text-[var(--brand-black)]">
-                        →
-                      </span>
+                        <span className="text-[var(--brand-black)] transition group-hover:text-[var(--brand-black)]">
+                          →
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setTaskToDelete(task)}
+                    aria-label={`Delete ${task.title || "task"}`}
+                    title="Delete task"
+                    className="my-auto flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-red-500/25 px-2.5 text-xs text-red-700 transition hover:bg-red-50 sm:px-3"
+                  >
+                    <Trash2 size={14} />
+                    <span className="hidden sm:inline">Delete</span>
+                  </button>
+                </div>
               ))}
             </div>
           )}
         </section>
       </div>
+
+      {/* CREATE TASK MODAL */}
+      {taskToDelete && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-task-title"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-[var(--brand-border)] bg-white p-6 shadow-xl">
+            <h2 id="delete-task-title" className="text-lg font-semibold">
+              Move task to Recycle Bin?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--brand-medium-gray)]">
+              This task will leave the active task list and can be restored from
+              the Recycle Bin.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                disabled={deletingTask}
+                onClick={() => setTaskToDelete(null)}
+                className="rounded-lg border border-[var(--brand-border)] px-4 py-2 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={deletingTask}
+                onClick={() => handleDeleteTask(taskToDelete, true)}
+                className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {deletingTask ? "Moving…" : "Move to Recycle Bin"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CREATE TASK MODAL */}
       {showCreateModal && (
@@ -2096,6 +2375,18 @@ export default function FounderTasksPage() {
                   rows={4}
                   className="w-full resize-none rounded-xl border border-[var(--brand-border)] bg-white p-4 text-sm text-[var(--brand-black)] outline-none placeholder:text-[var(--brand-black)] focus:border-[var(--brand-red-secondary)]/50"
                 />
+              </div>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[var(--brand-black)]">Client <span className="font-normal normal-case text-gray-500">(optional · Internal / No client is allowed)</span></label>
+                  <ClientSelector clients={clients} value={form.clientId} onChange={(value) => setForm({ ...form, clientId: value, workId: "" })} placeholder="Internal / No client" />
+                </div>
+                {form.clientId && <div>
+                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-[var(--brand-black)]">Work / Deliverable</label>
+                  <select value={form.workId} onChange={(event) => setForm({ ...form, workId: event.target.value })} className="h-12 w-full rounded-xl border border-[var(--brand-border)] bg-white px-4 text-sm"><option value="">General client task (no specific work)</option>{worksForSelectedClient.map((work) => <option key={work.id} value={work.id}>{work.name} · {work.status || "PLANNED"}</option>)}</select>
+                  {worksForSelectedClient.length === 0 && <p className="mt-1 text-xs text-gray-500">No deliverables created for this client yet. <Link className="font-medium text-[var(--brand-red)] underline" href={`/founder/clients/${encodeURIComponent(form.clientId)}?tab=Work`}>Create one in the client Work tab</Link>.</p>}
+                </div>}
               </div>
 
               {/* Assignment */}
@@ -2793,13 +3084,24 @@ export default function FounderTasksPage() {
                         </span>
                       </div>
 
-                      <p className="mt-3 text-sm font-semibold text-[var(--brand-dark-gray)]">
-                        {item.value}
-                      </p>
+                  <p className="mt-3 text-sm font-semibold text-[var(--brand-dark-gray)]">
+                    {item.value}
+                  </p>
                     </div>
                   );
                 })}
               </div>
+
+              {selectedTaskClient && <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <Link href={`/founder/clients/${encodeURIComponent(selectedTaskClient.id)}?tab=Work`} className="rounded-xl border p-4 hover:border-[var(--brand-red)]">
+                  <span className="block text-[10px] font-semibold uppercase tracking-wider text-gray-500">Client</span>
+                  <span className="mt-1 block text-sm font-semibold">{selectedTask.clientName || selectedTask.client || clients.find((client) => client.id === selectedTask.clientId)?.company || "View client"}</span>
+                </Link>
+                {selectedTask.workId && <Link href={`/founder/clients/${encodeURIComponent(selectedTaskClient.id)}?tab=Work&workId=${encodeURIComponent(selectedTask.workId)}`} className="rounded-xl border p-4 hover:border-[var(--brand-red)]">
+                  <span className="block text-[10px] font-semibold uppercase tracking-wider text-gray-500">Work / Deliverable</span>
+                  <span className="mt-1 block text-sm font-semibold">{clientWork.find((work) => work.id === selectedTask.workId)?.name || "View work"}</span>
+                </Link>}
+              </div>}
 
               {selectedTask.assignmentType === "team" && (
                 <div className="mt-4 rounded-2xl border border-[var(--brand-red-secondary)]/20 bg-[var(--brand-red)]/[0.04] p-5">
@@ -2863,7 +3165,7 @@ export default function FounderTasksPage() {
                           member.
                         </p>
                       )}
-                      {selectedTask.submissionAt && (
+                      {Boolean(selectedTask.submissionAt) && (
                         <p className="mt-1 text-xs text-[var(--brand-medium-gray)]">
                           {formatDateTime(selectedTask.submissionAt)}
                         </p>

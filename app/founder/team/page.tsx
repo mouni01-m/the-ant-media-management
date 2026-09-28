@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   AlertCircle,
   ArrowLeft,
@@ -28,7 +30,6 @@ import {
   getAuth,
   signOut,
 } from "firebase/auth";
-import { getApps, initializeApp } from "firebase/app";
 import {
   collection,
   deleteDoc,
@@ -45,15 +46,6 @@ import { auth, db } from "@/lib/firebase";
 
 const DEPARTMENTS = ["management", "editor", "content", "development"];
 const EMPLOYEE_ROLES = ["employee", "intern"];
-
-const secondaryFirebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
 
 type Member = {
   id: string;
@@ -87,7 +79,8 @@ function getInitials(name: string) {
 }
 
 export default function FounderTeamPage() {
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<{ uid: string } | null>(null);
   const [authorized, setAuthorized] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [members, setMembers] = useState<Member[]>([]);
@@ -380,12 +373,7 @@ export default function FounderTeamPage() {
     try {
       setActionLoading("create");
 
-      const secondaryName = `account-creation-${Date.now()}`;
-      const secondaryApp = initializeApp(
-        secondaryFirebaseConfig,
-        secondaryName,
-      );
-      const secondaryAuth = getAuth(secondaryApp);
+      const secondaryAuth = getAuth();
       const credential = await createUserWithEmailAndPassword(
         secondaryAuth,
         email,
@@ -414,9 +402,11 @@ export default function FounderTeamPage() {
         department: createType === "founder" ? "management" : "development",
       });
       setTimeout(() => setShowCreate(false), 900);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Create account error:", err);
-      const code = String(err?.code || "");
+      const code = typeof err === "object" && err !== null && "code" in err
+        ? String(err.code || "")
+        : "";
       if (code.includes("auth/email-already-in-use"))
         setError("That email already has a Firebase Auth account.");
       else if (code.includes("auth/invalid-email"))
@@ -518,7 +508,7 @@ export default function FounderTeamPage() {
         "Founder changed successfully. Your current account is now an employee and will be redirected to the employee workspace.",
       );
       await signOut(auth);
-      window.location.href = "/";
+      router.push("/");
     } catch (err) {
       console.error("Transfer founder error:", err);
       setError("Unable to change the Founder. Please try again.");
@@ -546,6 +536,13 @@ export default function FounderTeamPage() {
 
     try {
       setActionLoading(member.id);
+      const token = await auth.currentUser?.getIdToken();
+      const privateProfileResponse = await fetch(`/api/employee-profiles/${encodeURIComponent(member.id)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token || ""}` },
+        cache: "no-store",
+      });
+      if (!privateProfileResponse.ok) throw new Error("Private profile cleanup failed.");
       await deleteDoc(doc(db, "users", member.id));
       setMessage(
         `${member.name || member.email || "Member"} was removed from the workspace.`,
@@ -743,14 +740,16 @@ export default function FounderTeamPage() {
                   className="flex flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-4">
-                    <div
+                    {member.role !== "founder" ? <Link href={`/founder/team/${encodeURIComponent(member.id)}`} aria-label={`View ${member.name || "employee"} profile`} className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${member.role === "founder" ? "bg-amber-500/10 text-amber-700" : "bg-[var(--brand-red)]/10 text-[var(--brand-red)]"}`}>
+                      {getInitials(member.name || member.email || "U")}
+                    </Link> : <div
                       className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${member.role === "founder" ? "bg-amber-500/10 text-amber-700" : "bg-[var(--brand-red)]/10 text-[var(--brand-red)]"}`}
                     >
                       {getInitials(member.name || member.email || "U")}
-                    </div>
+                    </div>}
                     <div className="min-w-0">
                       <p className="truncate font-semibold">
-                        {member.name || "Unnamed member"}
+                        {member.role !== "founder" ? <Link href={`/founder/team/${encodeURIComponent(member.id)}`} className="hover:text-[var(--brand-red)]">{member.name || "Unnamed member"}</Link> : (member.name || "Unnamed member")}
                       </p>
                       <p className="mt-1 flex items-center gap-1 text-xs text-[var(--brand-medium-gray)]">
                         <Mail size={12} /> {member.email || "No email"}
@@ -791,6 +790,7 @@ export default function FounderTeamPage() {
                         <Pencil size={15} />
                       </button>
                     )}
+                    {member.role !== "founder" && <Link href={`/founder/team/${encodeURIComponent(member.id)}`} className="rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-xs font-medium hover:border-[var(--brand-red)]">View Profile</Link>}
                     {member.role === "founder" ? (
                       <button
                         onClick={() => {
@@ -1086,7 +1086,7 @@ export default function FounderTeamPage() {
               </select>
             </Field>
             <p className="text-xs text-[var(--brand-medium-gray)]">
-              Changing an employee's role updates the Firestore profile
+              Changing an employee&apos;s role updates the Firestore profile
               immediately. Management controls remain Founder-only.
             </p>
           </div>

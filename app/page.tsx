@@ -7,12 +7,8 @@ import {
   signOut,
 } from "firebase/auth";
 import {
-  collection,
   doc,
   getDocFromServer,
-  getDocs,
-  query,
-  where,
 } from "firebase/firestore";
 import { motion } from "framer-motion";
 import {
@@ -45,9 +41,9 @@ export default function Home() {
   const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!name.trim() || !email.trim() || !password) {
+    if (!email.trim() || !password) {
       setMessageType("error");
-      setMessage("Please enter your name, email and password.");
+      setMessage("Please enter your email and password.");
       return;
     }
 
@@ -76,46 +72,7 @@ export default function Home() {
       const userSnap = await getDocFromServer(userRef);
 
       // ----------------------------------------------------
-      // 3. DEBUG INFORMATION
-      // ----------------------------------------------------
-      console.log("====================================");
-      console.log("AUTH UID:", user.uid);
-      console.log("AUTH EMAIL:", user.email);
-      console.log("FIRESTORE PATH:", `users/${user.uid}`);
-      console.log("PROFILE EXISTS:", userSnap.exists());
-      console.log("FIREBASE PROJECT:", db.app.options.projectId);
-
-      if (userSnap.exists()) {
-        console.log("PROFILE DATA:", userSnap.data());
-      }
-
-      // ----------------------------------------------------
-      // 4. EXTRA EMAIL SEARCH
-      // This checks whether a profile exists under a
-      // different Firestore document ID.
-      // ----------------------------------------------------
-      try {
-        const usersQuery = query(
-          collection(db, "users"),
-          where("email", "==", user.email),
-        );
-
-        const usersSnap = await getDocs(usersQuery);
-
-        console.log("USERS WITH THIS EMAIL:", usersSnap.size);
-
-        usersSnap.forEach((userDoc) => {
-          console.log("FOUND FIRESTORE DOC ID:", userDoc.id);
-          console.log("FOUND FIRESTORE DATA:", userDoc.data());
-        });
-      } catch (emailSearchError) {
-        console.error("EMAIL PROFILE SEARCH ERROR:", emailSearchError);
-      }
-
-      console.log("====================================");
-
-      // ----------------------------------------------------
-      // 5. PROFILE DOES NOT EXIST
+      // 3. PROFILE DOES NOT EXIST
       // ----------------------------------------------------
       if (!userSnap.exists()) {
         setMessageType("error");
@@ -128,35 +85,12 @@ export default function Home() {
       }
 
       // ----------------------------------------------------
-      // 6. GET PROFILE DATA
+      // 4. GET PROFILE DATA
       // ----------------------------------------------------
       const userData = userSnap.data();
 
-      console.log("USER PROFILE:", userData);
-
       // ----------------------------------------------------
-      // 7. VERIFY LOGIN NAME
-      // The name entered at login must match the workspace
-      // profile created for this Firebase account.
-      // ----------------------------------------------------
-      const storedName =
-        typeof userData.name === "string" ? userData.name.trim() : "";
-
-      if (
-        !storedName ||
-        storedName.toLowerCase() !== name.trim().toLowerCase()
-      ) {
-        setMessageType("error");
-        setMessage(
-          "The name does not match your workspace profile. Please enter your registered name.",
-        );
-
-        await signOut(auth);
-        return;
-      }
-
-      // ----------------------------------------------------
-      // 8. CHECK ACTIVE STATUS
+      // 5. CHECK ACTIVE STATUS
       // ----------------------------------------------------
       if (userData.active !== true) {
         setMessageType("error");
@@ -169,7 +103,7 @@ export default function Home() {
       }
 
       // ----------------------------------------------------
-      // 9. CHECK ROLE
+      // 6. CHECK ROLE
       // ----------------------------------------------------
       const role = userData.role;
 
@@ -198,7 +132,7 @@ export default function Home() {
       }
 
       // ----------------------------------------------------
-      // 10. INVALID ROLE
+      // 7. INVALID ROLE
       // ----------------------------------------------------
       setMessageType("error");
       setMessage(
@@ -363,7 +297,7 @@ export default function Home() {
                     htmlFor="name"
                     className="mb-2 block text-sm font-medium text-[var(--brand-text-secondary)]"
                   >
-                    Name
+                    Name (optional)
                   </label>
 
                   <div className="group relative">
@@ -402,6 +336,7 @@ export default function Home() {
                     <input
                       id="email"
                       type="email"
+                      required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@antmedia.com"
@@ -429,6 +364,7 @@ export default function Home() {
                     <input
                       id="password"
                       type={showPassword ? "text" : "password"}
+                      required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter your password"

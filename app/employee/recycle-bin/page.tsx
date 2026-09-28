@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
+import { toFirestoreDate, toFirestoreMillis } from "@/lib/firestore-time";
 
 type UserProfile = {
   name?: string;
@@ -83,7 +84,7 @@ type RecycleTask = {
   submissionName?: string;
   submissionNote?: string;
 
-  deletedAt?: any;
+  deletedAt?: unknown;
   deletedBy?: string;
   deletedByName?: string;
 
@@ -98,14 +99,12 @@ type RecycleTask = {
   permanentlyDeleted?: boolean;
 };
 
-function formatDate(value: any) {
+function formatDate(value: unknown) {
   if (!value) return "—";
 
   try {
-    const date =
-      typeof value?.toDate === "function" ? value.toDate() : new Date(value);
-
-    if (Number.isNaN(date.getTime())) return "—";
+    const date = toFirestoreDate(value);
+    if (!date) return "—";
 
     return date.toLocaleString("en-IN", {
       day: "2-digit",
@@ -212,15 +211,8 @@ export default function EmployeeRecycleBinPage() {
         }));
 
         loadedTasks.sort((a, b) => {
-          const aDate =
-            typeof a.deletedAt?.toDate === "function"
-              ? a.deletedAt.toDate().getTime()
-              : 0;
-
-          const bDate =
-            typeof b.deletedAt?.toDate === "function"
-              ? b.deletedAt.toDate().getTime()
-              : 0;
+          const aDate = toFirestoreMillis(a.deletedAt);
+          const bDate = toFirestoreMillis(b.deletedAt);
 
           return bDate - aDate;
         });

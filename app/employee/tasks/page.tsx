@@ -30,6 +30,7 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { motion } from "framer-motion";
 import BrandLogo from "@/app/components/brand-logo";
@@ -52,6 +53,7 @@ import {
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 
 import { auth, db } from "@/lib/firebase";
+import { toFirestoreDate, toFirestoreMillis } from "@/lib/firestore-time";
 
 type TaskStatus =
   | "todo"
@@ -95,8 +97,8 @@ type Task = {
   deleteRequestStatus?: "none" | "pending" | "approved" | "rejected";
   deleteRequestedBy?: string;
   deleteRequestedByName?: string;
-  deleteRequestedAt?: any;
-  deleteReviewedAt?: any;
+  deleteRequestedAt?: unknown;
+  deleteReviewedAt?: unknown;
   deleteReviewedBy?: string;
   deleteReviewedByName?: string;
   deleteReviewMessage?: string;
@@ -110,23 +112,23 @@ type Task = {
   deadline?: string;
   deadlineTime?: string;
 
-  attachments?: any[];
+  attachments?: unknown[];
   referenceDriveUrl?: string;
   referenceDriveType?: string;
 
   submissionUrl?: string;
   submissionType?: string;
   submissionName?: string;
-  submissionAt?: any;
-  submissionEditedAt?: any;
+  submissionAt?: unknown;
+  submissionEditedAt?: unknown;
   submissionEditedBy?: string;
   submissionEditedByName?: string;
 
   feedback?: string;
   reviewComment?: string;
 
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 };
 
 type Profile = {
@@ -149,7 +151,7 @@ const statusConfig: Record<
   {
     label: string;
     className: string;
-    icon: any;
+    icon: LucideIcon;
   }
 > = {
   todo: {
@@ -253,16 +255,12 @@ function formatDate(value?: string) {
   });
 }
 
-function formatDateTime(value: any) {
+function formatDateTime(value: unknown) {
   if (!value) return "Not available";
 
   try {
-    const date =
-      typeof value?.toDate === "function" ? value.toDate() : new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return "Not available";
-    }
+    const date = toFirestoreDate(value);
+    if (!date) return "Not available";
 
     return date.toLocaleString("en-IN", {
       day: "2-digit",
@@ -276,25 +274,7 @@ function formatDateTime(value: any) {
   }
 }
 
-function getTimestamp(value: any) {
-  try {
-    if (!value) return 0;
-
-    if (typeof value?.toMillis === "function") {
-      return value.toMillis();
-    }
-
-    if (typeof value?.toDate === "function") {
-      return value.toDate().getTime();
-    }
-
-    const date = new Date(value);
-
-    return Number.isNaN(date.getTime()) ? 0 : date.getTime();
-  } catch {
-    return 0;
-  }
-}
+function getTimestamp(value: unknown) { return toFirestoreMillis(value); }
 
 function isCompleted(status?: string) {
   return normalize(status) === "completed";
@@ -2179,7 +2159,7 @@ export default function EmployeeTasksPage() {
                         {selectedTask.submissionName || "Submitted file"}
                       </p>
 
-                      {selectedTask.submissionAt && (
+                      {Boolean(selectedTask.submissionAt) && (
                         <p className="text-[11px] text-[var(--brand-medium-gray)] mt-1">
                           {formatDateTime(selectedTask.submissionAt)}
                         </p>

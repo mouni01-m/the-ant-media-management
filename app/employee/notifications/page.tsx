@@ -41,6 +41,7 @@ import {
 import { onAuthStateChanged } from "firebase/auth";
 
 import { auth, db } from "@/lib/firebase";
+import { toFirestoreDate, toFirestoreMillis } from "@/lib/firestore-time";
 
 import { sendNotification } from "@/lib/notifications";
 
@@ -74,7 +75,7 @@ type NotificationItem = {
 
   read?: boolean;
 
-  createdAt?: any;
+  createdAt?: unknown;
 
   taskId?: string;
   link?: string;
@@ -92,16 +93,13 @@ type NotificationItem = {
 /* HELPERS                                                                    */
 /* -------------------------------------------------------------------------- */
 
-function formatTime(timestamp: any) {
+function formatTime(timestamp: unknown) {
   if (!timestamp) return "Just now";
 
   try {
-    const date =
-      typeof timestamp?.toDate === "function"
-        ? timestamp.toDate()
-        : new Date(timestamp);
+    const date = toFirestoreDate(timestamp);
 
-    if (Number.isNaN(date.getTime())) {
+    if (!date) {
       return "Just now";
     }
 
@@ -141,25 +139,7 @@ function formatTime(timestamp: any) {
   }
 }
 
-function getMillis(value: any) {
-  try {
-    if (!value) return 0;
-
-    if (typeof value?.toMillis === "function") {
-      return value.toMillis();
-    }
-
-    if (typeof value?.toDate === "function") {
-      return value.toDate().getTime();
-    }
-
-    const date = new Date(value);
-
-    return Number.isNaN(date.getTime()) ? 0 : date.getTime();
-  } catch {
-    return 0;
-  }
-}
+function getMillis(value: unknown) { return toFirestoreMillis(value); }
 
 function getNotificationIcon(type?: NotificationType) {
   switch (type) {

@@ -18,7 +18,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, type User as AuthUser } from "firebase/auth";
 import {
   collection,
   deleteDoc,
@@ -137,7 +137,7 @@ function getRoleBadge(role?: string) {
 export default function FounderRecycleBinPage() {
   const router = useRouter();
 
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isFounder, setIsFounder] = useState(false);
 
@@ -205,17 +205,28 @@ export default function FounderRecycleBinPage() {
   useEffect(() => {
     if (!isFounder) return;
 
-    setLoading(true);
-
     const recycleRef = collection(db, "recycleBinTasks");
 
     const unsubscribe = onSnapshot(
       recycleRef,
       (snapshot) => {
-        const loaded: RecycleTask[] = snapshot.docs.map((item) => ({
-          id: item.id,
-          ...item.data(),
-        })) as RecycleTask[];
+        const byOriginalTask = new Map<string, RecycleTask>();
+        snapshot.docs.forEach((item) => {
+          const data = item.data();
+          const loadedTask = { ...data, id: item.id } as RecycleTask;
+          const logicalId = loadedTask.originalTaskId || item.id;
+          const existing = byOriginalTask.get(logicalId);
+          const taskTime = (value: unknown) => {
+            if (typeof value === "object" && value !== null && "seconds" in value) {
+              return Number((value as { seconds?: number }).seconds ?? 0);
+            }
+            return 0;
+          };
+          if (!existing || taskTime(loadedTask.deletedAt) >= taskTime(existing.deletedAt)) {
+            byOriginalTask.set(logicalId, loadedTask);
+          }
+        });
+        const loaded = Array.from(byOriginalTask.values());
 
         loaded.sort((a, b) => {
           const getTime = (value: unknown) => {
@@ -333,6 +344,7 @@ export default function FounderRecycleBinPage() {
       });
 
       await deleteDoc(doc(db, "recycleBinTasks", task.id));
+      setTasks((current) => current.filter((item) => item.id !== task.id));
 
       setSelectedTask(null);
     } catch (err) {
@@ -365,6 +377,7 @@ export default function FounderRecycleBinPage() {
 
     try {
       await deleteDoc(doc(db, "recycleBinTasks", task.id));
+      setTasks((current) => current.filter((item) => item.id !== task.id));
 
       setSelectedTask(null);
     } catch (err) {
