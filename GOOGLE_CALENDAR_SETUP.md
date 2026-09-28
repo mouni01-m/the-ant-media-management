@@ -6,16 +6,16 @@ Founder Content Calendar uses a server-side Google OAuth web flow. Refresh token
 
 Configure these values in the server deployment environment (not in a `NEXT_PUBLIC_*` variable):
 
-- `GOOGLE_CLIENT_ID`: OAuth 2.0 Web application client ID. For migration, the code can temporarily fall back to the existing `NEXT_PUBLIC_GOOGLE_CLIENT_ID` value in `.env`; prefer moving it to `GOOGLE_CLIENT_ID`.
+- `GOOGLE_CLIENT_ID`: OAuth 2.0 Web application client ID. The server-side Founder OAuth flow requires this server variable and does not fall back to `NEXT_PUBLIC_GOOGLE_CLIENT_ID`.
 - `GOOGLE_CLIENT_SECRET`: OAuth web client secret. Keep this server-only.
 - `GOOGLE_REDIRECT_URI`: exact OAuth callback URI registered in Google Cloud. For local development, use `http://localhost:3000/api/google-calendar/callback`; for production, use `https://<your-vercel-domain>/api/google-calendar/callback`.
-- `APP_URL`: canonical application origin fallback used to construct the callback URI when `GOOGLE_REDIRECT_URI` is omitted.
+- `APP_URL`: canonical application origin fallback used only for local development when `GOOGLE_REDIRECT_URI` is omitted. Vercel deployments must set `GOOGLE_REDIRECT_URI` explicitly.
 - `GOOGLE_OAUTH_STATE_SECRET`: cryptographically random secret used to sign short-lived OAuth state values.
 - `CLIENT_CREDENTIALS_ENCRYPTION_KEY`: 32-byte encryption key, base64 or 64-character hex. This is also used for the existing encrypted client credentials.
 
-The existing Firebase Admin setup must also be available to the server (`FIREBASE_SERVICE_ACCOUNT_JSON` or application default credentials, plus the Firebase project ID). Admin credentials must remain server-only.
+The existing Firebase Admin setup must also be available to the server (`FIREBASE_SERVICE_ACCOUNT_JSON` or application default credentials, plus the Firebase project ID). On Vercel, provide service-account credentials unless the deployment has an explicitly configured Google application-default credential source. Admin credentials must remain server-only.
 
-The current local `.env` contains only `NEXT_PUBLIC_GOOGLE_CLIENT_ID` among Google Calendar variables. It does not contain the web client secret, redirect URI/app URL, OAuth state key, or the credential encryption key. Use an ignored `.env.local` for local-only values, or configure them in the deployment secret manager. Generate independent random values for the state and encryption keys.
+The current local `.env` contains only `NEXT_PUBLIC_GOOGLE_CLIENT_ID` among Google Calendar variables. It does not contain the server OAuth client ID, web client secret, redirect URI/app URL, OAuth state key, or credential encryption key. Use an ignored `.env.local` for local-only values, or configure them in the deployment secret manager. Generate independent random values for the state and encryption keys.
 
 API routes verify the Firebase ID token and then check the Founder role and active status in Firestore. The browser obtains the Firebase token from the existing Firebase Auth session and retries once with a freshly refreshed ID token after a 401. Token failures return 401; Firebase Admin/profile lookup failures return 503 so server credential problems are not mislabeled as expired user sessions. The server needs Firebase Admin credentials via `FIREBASE_SERVICE_ACCOUNT_JSON` or Application Default Credentials, and the Firebase project ID.
 

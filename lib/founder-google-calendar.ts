@@ -28,10 +28,28 @@ function required(name: string) {
 
 export function redirectUri() {
   const configuredRedirect = process.env.GOOGLE_REDIRECT_URI;
-  if (configuredRedirect) return configuredRedirect;
+  if (configuredRedirect) {
+    let parsed: URL;
+    try {
+      parsed = new URL(configuredRedirect);
+    } catch {
+      throw new Error("GOOGLE_REDIRECT_URI must be an absolute URL");
+    }
+    if (parsed.pathname !== "/api/google-calendar/callback" || parsed.search || parsed.hash) {
+      throw new Error("GOOGLE_REDIRECT_URI must target /api/google-calendar/callback without query or fragment");
+    }
+    return configuredRedirect;
+  }
+  if (process.env.VERCEL) {
+    throw new Error("GOOGLE_REDIRECT_URI is required on Vercel");
+  }
   const origin = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL;
   if (!origin) throw new Error("APP_URL is not configured");
   return `${origin.replace(/\/$/, "")}/api/google-calendar/callback`;
+}
+
+function googleClientId() {
+  return required("GOOGLE_CLIENT_ID");
 }
 
 export function signOAuthState(uid: string) {
@@ -53,7 +71,7 @@ export function verifyOAuthState(state: string) {
 
 export function googleAuthorizationUrl(uid: string) {
   const params = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID || required("NEXT_PUBLIC_GOOGLE_CLIENT_ID"),
+    client_id: googleClientId(),
     redirect_uri: redirectUri(),
     response_type: "code",
     scope: GOOGLE_CALENDAR_SCOPES,
@@ -69,7 +87,7 @@ export function googleAuthorizationUrl(uid: string) {
 export async function exchangeCode(code: string) {
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ code, client_id: process.env.GOOGLE_CLIENT_ID || required("NEXT_PUBLIC_GOOGLE_CLIENT_ID"), client_secret: required("GOOGLE_CLIENT_SECRET"), redirect_uri: redirectUri(), grant_type: "authorization_code" }),
+    body: new URLSearchParams({ code, client_id: googleClientId(), client_secret: required("GOOGLE_CLIENT_SECRET"), redirect_uri: redirectUri(), grant_type: "authorization_code" }),
     cache: "no-store",
   });
   const data = await response.json();
@@ -87,7 +105,7 @@ export async function googleRequest<T>(url: string, accessToken: string, init?: 
 export async function refreshGoogleToken(refreshToken: string) {
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID || required("NEXT_PUBLIC_GOOGLE_CLIENT_ID"), client_secret: required("GOOGLE_CLIENT_SECRET"), refresh_token: refreshToken, grant_type: "refresh_token" }), cache: "no-store",
+    body: new URLSearchParams({ client_id: googleClientId(), client_secret: required("GOOGLE_CLIENT_SECRET"), refresh_token: refreshToken, grant_type: "refresh_token" }), cache: "no-store",
   });
   const data = await response.json();
   if (!response.ok || !data.access_token) throw new Error("Google Calendar authorization expired. Please reconnect.");
