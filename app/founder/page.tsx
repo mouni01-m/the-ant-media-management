@@ -668,12 +668,12 @@ export default function FounderDashboard() {
         }`}
       >
         {/* Logo */}
-        <div className="flex h-[78px] items-center border-b border-[var(--brand-border)] px-5">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="flex h-[78px] items-center justify-center border-b border-[var(--brand-border)] px-2">
+          <div className="flex w-full min-w-0 items-center justify-center gap-3">
             {collapsed ? (
               <BrandLogo compact />
             ) : (
-              <BrandLogo className="h-[68px] w-[160px]" priority />
+              <BrandLogo priority />
             )}
           </div>
 

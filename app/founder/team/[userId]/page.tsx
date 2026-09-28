@@ -13,6 +13,7 @@ type EmployeeUser = {
   fullName: string;
   email: string;
   role: string;
+  position?: string;
   department: string;
   active: boolean;
   joiningDate: string;
@@ -175,7 +176,7 @@ export default function EmployeeProfilePage() {
       {error && <p className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}{message && <p className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800">{message}</p>}
       <section className="flex flex-wrap items-center gap-4 rounded-2xl border p-5">
         <div className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-red-50 text-xl font-bold text-[var(--brand-red)]">{details.photoUrl ? <Image src={details.photoUrl} alt={`${user.fullName} profile`} fill unoptimized className="object-cover" /> : user.fullName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</div>
-        <div className="min-w-0 flex-1"><h1 className="text-2xl font-semibold">{user.fullName || "Employee profile"}</h1><p className="mt-1 break-all text-sm text-gray-500">{user.email}</p><div className="mt-2 flex flex-wrap gap-2 text-xs"><span className="rounded-full border px-3 py-1">{user.role}</span><span className="rounded-full border px-3 py-1">{user.department}</span><span className={`rounded-full border px-3 py-1 ${user.active ? "text-green-700" : "text-red-700"}`}>{user.active ? "Active" : "Inactive"}</span></div></div>
+        <div className="min-w-0 flex-1"><h1 className="text-2xl font-semibold">{user.fullName || "Employee profile"}</h1><p className="mt-1 break-all text-sm text-gray-500">{user.email}</p><div className="mt-2 flex flex-wrap gap-2 text-xs"><span className="rounded-full border px-3 py-1">{user.position || user.role}</span><span className="rounded-full border px-3 py-1">{user.department}</span><span className={`rounded-full border px-3 py-1 ${user.active ? "text-green-700" : "text-red-700"}`}>{user.active ? "Active" : "Inactive"}</span></div></div>
       </section>
 
       {editing ? <form onSubmit={save} className="mt-5 space-y-5">
@@ -189,7 +190,7 @@ export default function EmployeeProfilePage() {
         <section className="rounded-2xl border p-5"><h2 className="font-semibold">Emergency contact</h2>{field("Contact name", details.emergencyContactName)}{field("Contact number", details.emergencyContactNumber)}</section>
         <section className="rounded-2xl border p-5"><div className="flex items-center justify-between gap-3"><h2 className="font-semibold">Identity</h2><button onClick={() => revealed ? (setRevealed(false), void load()) : void revealPrivateFields()} className="inline-flex items-center gap-2 text-xs text-[var(--brand-red)]">{revealed ? <EyeOff size={14} /> : <Eye size={14} />}{revealed ? "Hide" : "Reveal"}</button></div>{field("Aadhaar number", revealed ? details.aadhaarNumber || "Not provided" : details.aadhaarMasked)}</section>
         <section className="rounded-2xl border p-5"><div className="flex items-center justify-between gap-3"><h2 className="font-semibold">Bank details</h2><button onClick={() => revealed ? (setRevealed(false), void load()) : void revealPrivateFields()} className="inline-flex items-center gap-2 text-xs text-[var(--brand-red)]">{revealed ? <EyeOff size={14} /> : <Eye size={14} />}{revealed ? "Hide" : "Reveal"}</button></div>{field("Account holder", details.bankDetails.accountHolderName)}{field("Bank", details.bankDetails.bankName)}{field("Account number", revealed ? details.bankDetails.accountNumber || "Not provided" : details.bankDetails.accountNumberMasked)}{field("IFSC", details.bankDetails.ifscCode)}</section>
-        <section className="rounded-2xl border p-5 md:col-span-2"><h2 className="font-semibold">Professional details</h2>{field("Role", user.role)}{field("Department", user.department)}{field("Joining date", user.joiningDate)}{details.resumeUrl ? <a href={details.resumeUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><FileText size={15} /> Open resume</a> : <p className="mt-3 text-sm text-gray-500">No resume link provided.</p>}</section>
+        <section className="rounded-2xl border p-5 md:col-span-2"><h2 className="font-semibold">Professional details</h2>{field("Role", user.position || user.role)}{field("Department", user.department)}{field("Joining date", user.joiningDate)}{details.resumeUrl ? <a href={details.resumeUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"><FileText size={15} /> Open resume</a> : <p className="mt-3 text-sm text-gray-500">No resume link provided.</p>}</section>
       </div>}
     </div>
   </main>;

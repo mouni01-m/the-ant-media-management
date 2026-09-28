@@ -366,6 +366,8 @@ export default function FounderTasksPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [priorityFilter, setPriorityFilter] = useState("ALL");
+  const [departmentFilter, setDepartmentFilter] = useState("ALL");
+  const [taskTypeFilter, setTaskTypeFilter] = useState("ALL");
   const [employeeFilter, setEmployeeFilter] = useState("");
   const [clientFilter, setClientFilter] = useState("");
   const [workFilter, setWorkFilter] = useState("");
@@ -431,9 +433,11 @@ export default function FounderTasksPage() {
 
     const requestedFilter = params.get("filter");
     const requestedEmployee = params.get("employee") || "";
+    const requestedClient = params.get("client") || "";
     if (
       params.get("create") !== "1" &&
       !requestedEmployee &&
+      !requestedClient &&
       requestedFilter !== "active" &&
       requestedFilter !== "overdue"
     )
@@ -444,6 +448,7 @@ export default function FounderTasksPage() {
         setTaskViewFilter(requestedFilter);
       }
       if (requestedEmployee) setEmployeeFilter(requestedEmployee);
+      if (requestedClient) setClientFilter(requestedClient);
       if (params.get("create") === "1") {
         resetForm();
         setShowCreateModal(true);
@@ -691,6 +696,10 @@ export default function FounderTasksPage() {
 
       const matchesPriority =
         priorityFilter === "ALL" || task.priority === priorityFilter;
+      const matchesDepartment =
+        departmentFilter === "ALL" || task.department === departmentFilter;
+      const matchesTaskType =
+        taskTypeFilter === "ALL" || task.taskType === taskTypeFilter;
 
       const matchesEmployee =
         !employeeFilter ||
@@ -705,12 +714,23 @@ export default function FounderTasksPage() {
         (taskViewFilter === "active" && isActiveTask(task)) ||
         (taskViewFilter === "overdue" && isTaskOverdue(task));
 
-      const selectedFilterClient = clients.find((client) => client.id === clientFilter);
-      const matchesClient = !clientFilter || task.clientId === clientFilter || (!task.clientId && Boolean(selectedFilterClient && [selectedFilterClient.name, selectedFilterClient.company].includes(task.clientName || task.client || "")));
+      const selectedFilterClient = clients.find(
+        (client) => client.id === clientFilter,
+      );
+      const matchesClient =
+        !clientFilter ||
+        task.clientId === clientFilter ||
+        (!task.clientId &&
+          Boolean(
+            selectedFilterClient &&
+              [selectedFilterClient.name, selectedFilterClient.company].includes(
+                task.clientName || task.client || "",
+              ),
+          ));
       const matchesWork = !workFilter || task.workId === workFilter;
-      return matchesSearch && matchesStatus && matchesPriority && matchesEmployee && matchesView && matchesClient && matchesWork;
+      return matchesSearch && matchesStatus && matchesPriority && matchesDepartment && matchesTaskType && matchesEmployee && matchesView && matchesClient && matchesWork;
     });
-  }, [tasks, clients, search, statusFilter, priorityFilter, employeeFilter, taskViewFilter, clientFilter, workFilter]);
+  }, [tasks, clients, search, statusFilter, priorityFilter, departmentFilter, taskTypeFilter, employeeFilter, taskViewFilter, clientFilter, workFilter]);
 
   const worksForSelectedClient = clientWork.filter((work) => work.clientId === form.clientId);
   const worksForFilterClient = clientWork.filter((work) => work.clientId === clientFilter);
@@ -2000,6 +2020,34 @@ export default function FounderTasksPage() {
               ))}
             </select>
 
+            <select
+              aria-label="Filter tasks by department"
+              value={departmentFilter}
+              onChange={(event) => setDepartmentFilter(event.target.value)}
+              className="h-12 min-w-[170px] rounded-xl border border-[var(--brand-border)] bg-white px-4 text-sm text-[var(--brand-black)] outline-none"
+            >
+              <option value="ALL">All departments</option>
+              {DEPARTMENTS.map((department) => (
+                <option key={department} value={department}>
+                  {department}
+                </option>
+              ))}
+            </select>
+
+            <select
+              aria-label="Filter tasks by task type"
+              value={taskTypeFilter}
+              onChange={(event) => setTaskTypeFilter(event.target.value)}
+              className="h-12 min-w-[170px] rounded-xl border border-[var(--brand-border)] bg-white px-4 text-sm text-[var(--brand-black)] outline-none"
+            >
+              <option value="ALL">All task types</option>
+              {TASK_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+
               <select
                 value={taskViewFilter}
               onChange={(event) =>
@@ -2040,6 +2088,8 @@ export default function FounderTasksPage() {
                 setSearch("");
                 setStatusFilter("ALL");
                 setPriorityFilter("ALL");
+                setDepartmentFilter("ALL");
+                setTaskTypeFilter("ALL");
                 setEmployeeFilter("");
                 setTaskViewFilter("all");
                 setClientFilter("");
@@ -2078,11 +2128,16 @@ export default function FounderTasksPage() {
                 <FileText size={27} />
               </div>
 
-              <h3 className="text-lg font-semibold">No tasks found</h3>
+              <h3 className="text-lg font-semibold">
+                {employeeFilter
+                  ? "No tasks assigned to this employee."
+                  : "No tasks found"}
+              </h3>
 
               <p className="mt-2 max-w-md text-sm leading-6 text-[var(--brand-medium-gray)]">
-                Create a task and assign it to a team member. The task will
-                immediately appear here.
+                {employeeFilter
+                  ? `Showing tasks for ${users.find((employee) => employee.id === employeeFilter)?.name || "the selected employee"}. Clear the employee filter to see all tasks.`
+                  : "Create a task and assign it to a team member. The task will immediately appear here."}
               </p>
 
               <button

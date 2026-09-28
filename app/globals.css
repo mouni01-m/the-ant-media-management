@@ -153,15 +153,9 @@ textarea.input-style {
 
 .brand-logo {
   position: relative;
-  width: 13.5rem;
-  height: 5rem;
   overflow: hidden;
   border-radius: 0.75rem;
   background: #ffffff;
-}
-
-.brand-logo img {
-  transform: scale(1.42);
 }
 
 .brand-logo--compact {

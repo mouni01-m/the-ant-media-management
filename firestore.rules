@@ -87,11 +87,33 @@ service cloud.firestore {
       );
 
       allow create: if isStaff() &&
-        request.resource.data.userId == request.auth.uid;
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.date is string &&
+        attendanceId == request.auth.uid + "_" + request.resource.data.date &&
+        request.resource.data.checkIn is string &&
+        request.resource.data.checkIn != "" &&
+        request.resource.data.checkOut == "";
 
+      // Staff can only check out an existing open attendance record once.
+      // Check-in creation is a separate create operation above.
       allow update: if isStaff() &&
         resource.data.userId == request.auth.uid &&
-        request.resource.data.userId == request.auth.uid;
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.date == resource.data.date &&
+        (
+          // Initialize an older/empty record without permitting a second check-in.
+          ((!('checkIn' in resource.data) || resource.data.checkIn == '') &&
+            request.resource.data.checkIn is string &&
+            request.resource.data.checkIn != '' &&
+            request.resource.data.checkOut == '') ||
+          // Or check out exactly once after a valid check-in.
+          (resource.data.checkIn is string &&
+            resource.data.checkIn != '' &&
+            (!('checkOut' in resource.data) || resource.data.checkOut == '') &&
+            request.resource.data.checkIn == resource.data.checkIn &&
+            request.resource.data.checkOut is string &&
+            request.resource.data.checkOut != '')
+        );
 
       allow create, update, delete: if isFounder();
     }

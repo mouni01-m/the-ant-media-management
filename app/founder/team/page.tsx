@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -8,6 +8,8 @@ import {
   ArrowLeft,
   Check,
   Crown,
+  Eye,
+  EyeOff,
   Loader2,
   Mail,
   Pencil,
@@ -17,6 +19,8 @@ import {
   AlertTriangle,
   Activity,
   ArrowUpRight,
+  BriefcaseBusiness,
+  Building2,
   UserCheck,
   Trash2,
   UserPlus,
@@ -44,14 +48,14 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
-const DEPARTMENTS = ["management", "editor", "content", "development"];
-const EMPLOYEE_ROLES = ["employee", "intern"];
+type CatalogItem = { id: string; name: string; description?: string; isActive: boolean };
 
 type Member = {
   id: string;
   name?: string;
   email?: string;
   role?: string;
+  position?: string;
   department?: string;
   active?: boolean;
 };
@@ -84,10 +88,17 @@ export default function FounderTeamPage() {
   const [authorized, setAuthorized] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [members, setMembers] = useState<Member[]>([]);
+  const [roles, setRoles] = useState<CatalogItem[]>([]);
+  const [departments, setDepartments] = useState<CatalogItem[]>([]);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [tasks, setTasks] = useState<TeamTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [catalogKind, setCatalogKind] = useState<"role" | "department" | null>(null);
+  const [editingCatalogItem, setEditingCatalogItem] = useState<CatalogItem | null>(null);
+  const [catalogForm, setCatalogForm] = useState({ name: "", description: "" });
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [createType, setCreateType] = useState<"employee" | "founder">(
     "employee",
   );
@@ -101,8 +112,20 @@ export default function FounderTeamPage() {
     email: "",
     password: "",
     role: "employee",
+    position: "Employee",
     department: "development",
   });
+
+  const loadCatalog = useCallback(async () => {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw new Error("Founder login required.");
+    const response = await fetch("/api/team-catalog", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Unable to load roles and departments.");
+    setRoles(result.roles || []);
+    setDepartments(result.departments || []);
+    setCatalogLoaded(true);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -128,6 +151,10 @@ export default function FounderTeamPage() {
 
         setCurrentUser({ uid: user.uid, ...snap.data() });
         setAuthorized(true);
+        void loadCatalog().catch((catalogError) => {
+          console.error("Founder role and department catalog load failed:", catalogError);
+          setError(catalogError instanceof Error ? catalogError.message : "Unable to load roles and departments.");
+        });
       } catch (err) {
         console.error("Founder team authentication error:", err);
         setAuthorized(false);
@@ -138,7 +165,7 @@ export default function FounderTeamPage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [loadCatalog]);
 
   useEffect(() => {
     if (!authorized) return;
@@ -335,6 +362,7 @@ export default function FounderTeamPage() {
       email: "",
       password: "",
       role: createType === "founder" ? "founder" : "employee",
+      position: createType === "founder" ? "Founder" : "Employee",
       department: createType === "founder" ? "management" : "development",
     });
     setMessage("");
@@ -343,12 +371,14 @@ export default function FounderTeamPage() {
 
   function openCreate(type: "employee" | "founder") {
     setCreateType(type);
+    setPasswordVisible(false);
     setForm({
       name: "",
       email: "",
       password: "",
       role: type === "founder" ? "founder" : "employee",
-      department: type === "founder" ? "management" : "development",
+      position: type === "founder" ? "Founder" : roles.find((item) => item.isActive && item.name.toLowerCase() === "employee")?.name || roles.find((item) => item.isActive)?.name || "Employee",
+      department: type === "founder" ? "management" : departments.find((item) => item.isActive)?.name || "",
     });
     setMessage("");
     setError("");
@@ -363,9 +393,13 @@ export default function FounderTeamPage() {
     const email = form.email.trim().toLowerCase();
     const password = form.password;
 
-    if (!name || !email || password.length < 6) {
+    const roleAvailable = roles.some((item) => item.isActive && item.name === form.position);
+    const departmentAvailable = departments.some((item) => item.isActive && item.name === form.department);
+    if (!name || !email || password.length < 6 || (createType === "employee" && (!roleAvailable || !departmentAvailable))) {
       setError(
-        "Name, email and a password of at least 6 characters are required.",
+        !name || !email || password.length < 6
+          ? "Name, email and a password of at least 6 characters are required."
+          : "Select an active role and department before creating the account.",
       );
       return;
     }
@@ -384,6 +418,7 @@ export default function FounderTeamPage() {
         name,
         email,
         role: createType === "founder" ? "founder" : form.role,
+        position: createType === "founder" ? "Founder" : form.position,
         department: createType === "founder" ? "management" : form.department,
         active: true,
         createdAt: serverTimestamp(),
@@ -399,7 +434,8 @@ export default function FounderTeamPage() {
         email: "",
         password: "",
         role: createType === "founder" ? "founder" : "employee",
-        department: createType === "founder" ? "management" : "development",
+        position: createType === "founder" ? "Founder" : "Employee",
+        department: "",
       });
       setTimeout(() => setShowCreate(false), 900);
     } catch (err: unknown) {
@@ -430,10 +466,14 @@ export default function FounderTeamPage() {
 
     try {
       setActionLoading(member.id);
+      const legacyAccessRole = ["employee", "intern"].includes(newRole.toLowerCase()) ? newRole.toLowerCase() : member.role || "employee";
+      const position = newRole;
       await updateDoc(doc(db, "users", member.id), {
-        role: newRole,
+        role: legacyAccessRole,
+        position,
         updatedAt: serverTimestamp(),
       });
+      setMembers((current) => current.map((item) => item.id === member.id ? { ...item, role: legacyAccessRole, position } : item));
       setShowRole(null);
       setMessage(
         `${member.name || member.email || "Member"} is now ${newRole}.`,
@@ -444,6 +484,56 @@ export default function FounderTeamPage() {
     } finally {
       setActionLoading(null);
     }
+  }
+
+  async function saveCatalogItem(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!catalogKind) return;
+    setError("");
+    const normalizedName = catalogForm.name.trim().toLocaleLowerCase();
+    const existing = (catalogKind === "role" ? roles : departments).some(
+      (item) => item.id !== editingCatalogItem?.id && item.name.trim().toLocaleLowerCase() === normalizedName,
+    );
+    if (existing) {
+      setError(`${catalogKind === "role" ? "Role" : "Department"} already exists.`);
+      return;
+    }
+    try {
+      setActionLoading("catalog");
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Founder login required.");
+      const response = await fetch("/api/team-catalog", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: catalogKind, action: editingCatalogItem ? "update" : "create", id: editingCatalogItem?.id, ...catalogForm }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Unable to save catalog item.");
+      await loadCatalog();
+      setCatalogForm({ name: "", description: "" });
+      setEditingCatalogItem(null);
+      setMessage(`${catalogKind === "role" ? "Role" : "Department"} ${editingCatalogItem ? "updated" : "created"}.`);
+    } catch (catalogError) {
+      setError(catalogError instanceof Error ? catalogError.message : "Unable to save catalog item.");
+    } finally { setActionLoading(null); }
+  }
+
+  async function setCatalogActive(kind: "role" | "department", item: CatalogItem) {
+    try {
+      setActionLoading(item.id);
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("Founder login required.");
+      const response = await fetch("/api/team-catalog", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, action: item.isActive ? "deactivate" : "activate", id: item.id }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Unable to update catalog item.");
+      await loadCatalog();
+    } catch (catalogError) {
+      setError(catalogError instanceof Error ? catalogError.message : "Unable to update catalog item.");
+    } finally { setActionLoading(null); }
   }
 
   async function changeDepartment(member: Member, department: string) {
@@ -491,14 +581,14 @@ export default function FounderTeamPage() {
         transaction.update(currentRef, {
           role: "employee",
           department:
-            currentSnap.data().department === "management"
-              ? "development"
-              : currentSnap.data().department || "development",
+            currentSnap.data().department === "Management"
+              ? "Development"
+              : currentSnap.data().department || "Development",
           updatedAt: serverTimestamp(),
         });
         transaction.update(targetRef, {
           role: "founder",
-          department: "management",
+          department: "Management",
           active: true,
           updatedAt: serverTimestamp(),
         });
@@ -659,9 +749,22 @@ export default function FounderTeamPage() {
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => openCreate("employee")}
-              className="flex items-center gap-2 rounded-xl bg-[var(--brand-red)] px-5 py-3.5 text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,0.04)] shadow-black/20"
+              disabled={!catalogLoaded}
+              className="flex items-center gap-2 rounded-xl bg-[var(--brand-red)] px-5 py-3.5 text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,0.04)] shadow-black/20 disabled:opacity-60"
             >
-              <UserPlus size={17} /> Create Employee
+              <UserPlus size={17} /> {catalogLoaded ? "Create Employee" : "Loading…"}
+            </button>
+            <button
+              onClick={() => { setCatalogKind("role"); setEditingCatalogItem(null); setCatalogForm({ name: "", description: "" }); setError(""); }}
+              className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3.5 text-sm font-semibold text-[var(--brand-black)] hover:bg-[var(--brand-red-light)]"
+            >
+              <BriefcaseBusiness size={16} /> Create Role
+            </button>
+            <button
+              onClick={() => { setCatalogKind("department"); setEditingCatalogItem(null); setCatalogForm({ name: "", description: "" }); setError(""); }}
+              className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3.5 text-sm font-semibold text-[var(--brand-black)] hover:bg-[var(--brand-red-light)]"
+            >
+              <Building2 size={16} /> Create Department
             </button>
             <button
               onClick={() => openCreate("founder")}
@@ -767,7 +870,7 @@ export default function FounderTeamPage() {
                       {member.active !== false ? "Active" : "Inactive"}
                     </span>
                     <span className="rounded-full border border-[var(--brand-border)] bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-black)]">
-                      {member.role}
+                      {member.position || member.role}
                     </span>
                     <span className="rounded-full border border-[var(--brand-border)] bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-black)]">
                       {member.department || "unassigned"}
@@ -938,7 +1041,7 @@ export default function FounderTeamPage() {
         <div className="mt-6 grid gap-4 md:grid-cols-3">
           <Info
             title="Founder"
-            text="Full management access, including users, tasks, attendance, clients and calendar operations."
+            text="Full  access, including users, tasks, attendance, clients and calendar operations."
           />
           <Info
             title="Employee"
@@ -977,22 +1080,34 @@ export default function FounderTeamPage() {
               />
             </Field>
             <Field label="Temporary password">
-              <input
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="Minimum 6 characters"
-              />
+              <div className="relative">
+                <input
+                  type={passwordVisible ? "text" : "password"}
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  placeholder="Minimum 6 characters"
+                  autoComplete="new-password"
+                  style={{ width: "100%", paddingRight: "2.75rem" }}
+                />
+                <button
+                  type="button"
+                  aria-label={passwordVisible ? "Hide temporary password" : "Show temporary password"}
+                  aria-pressed={passwordVisible}
+                  onClick={() => setPasswordVisible((visible) => !visible)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 border-0 bg-transparent p-1 text-[var(--brand-medium-gray)] hover:text-[var(--brand-black)]"
+                >
+                  {passwordVisible ? <Eye size={17} /> : <EyeOff size={17} />}
+                </button>
+              </div>
             </Field>
             {createType === "employee" && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Role">
                   <select
-                    value={form.role}
-                    onChange={(e) => setForm({ ...form, role: e.target.value })}
+                    value={form.position}
+                    onChange={(e) => setForm({ ...form, position: e.target.value, role: e.target.value.toLowerCase() === "intern" ? "intern" : "employee" })}
                   >
-                    <option value="employee">Employee</option>
-                    <option value="intern">Intern</option>
+                    {roles.filter((item) => item.isActive).map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
                   </select>
                 </Field>
                 <Field label="Department">
@@ -1002,9 +1117,9 @@ export default function FounderTeamPage() {
                       setForm({ ...form, department: e.target.value })
                     }
                   >
-                    {DEPARTMENTS.filter((d) => d !== "management").map((d) => (
-                      <option key={d} value={d}>
-                        {d}
+                    {departments.filter((item) => item.isActive).map((item) => (
+                      <option key={item.id} value={item.name}>
+                        {item.name}
                       </option>
                     ))}
                   </select>
@@ -1055,6 +1170,43 @@ export default function FounderTeamPage() {
         </Modal>
       )}
 
+      {catalogKind && (
+        <Modal
+          title={catalogKind === "role" ? "Manage Roles" : "Manage Departments"}
+          onClose={() => { setCatalogKind(null); setEditingCatalogItem(null); setCatalogForm({ name: "", description: "" }); }}
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-[var(--brand-medium-gray)]">Create, rename, or deactivate {catalogKind === "role" ? "team roles" : "departments"}. Inactive entries remain assigned to current team members.</p>
+            <div className="max-h-56 divide-y overflow-y-auto rounded-xl border border-[var(--brand-border)]">
+              {(catalogKind === "role" ? roles : departments).map((item) => (
+                <div key={item.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{item.name}</p>
+                    <p className="text-[10px] text-[var(--brand-medium-gray)]">{item.isActive ? "Active" : "Inactive"}{item.description ? ` · ${item.description}` : ""}</p>
+                  </div>
+                  <button onClick={() => { setEditingCatalogItem(item); setCatalogForm({ name: item.name, description: item.description || "" }); }} className="rounded-lg border border-[var(--brand-border)] px-2.5 py-1.5 text-xs hover:border-[var(--brand-red)]">Edit</button>
+                  <button onClick={() => void setCatalogActive(catalogKind, item)} disabled={actionLoading === item.id} className="rounded-lg border border-[var(--brand-border)] px-2.5 py-1.5 text-xs disabled:opacity-50">{actionLoading === item.id ? "Saving…" : item.isActive ? "Deactivate" : "Activate"}</button>
+                </div>
+              ))}
+            </div>
+            <form onSubmit={saveCatalogItem} className="space-y-3 rounded-xl border border-[var(--brand-border)] p-4">
+              <h3 className="text-sm font-semibold">{editingCatalogItem ? `Edit ${catalogKind}` : `Create ${catalogKind}`}</h3>
+              <Field label={`${catalogKind === "role" ? "Role" : "Department"} name *`}>
+                <input required maxLength={80} value={catalogForm.name} onChange={(event) => setCatalogForm({ ...catalogForm, name: event.target.value })} placeholder={catalogKind === "role" ? "e.g. Manager" : "e.g. Marketing"} />
+              </Field>
+              <Field label="Description">
+                <input value={catalogForm.description} onChange={(event) => setCatalogForm({ ...catalogForm, description: event.target.value })} placeholder="Optional description" />
+              </Field>
+              {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error}</p>}
+              <div className="flex gap-2">
+                {editingCatalogItem && <button type="button" onClick={() => { setEditingCatalogItem(null); setCatalogForm({ name: "", description: "" }); }} className="rounded-xl border border-[var(--brand-border)] px-4 py-2.5 text-sm">Cancel edit</button>}
+                <button type="submit" disabled={actionLoading === "catalog"} className="rounded-xl bg-[var(--brand-red)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{actionLoading === "catalog" ? "Saving…" : editingCatalogItem ? "Save changes" : `Create ${catalogKind}`}</button>
+              </div>
+            </form>
+          </div>
+        </Modal>
+      )}
+
       {showRole && (
         <Modal
           title={`Edit ${showRole.name || "member"}`}
@@ -1063,14 +1215,10 @@ export default function FounderTeamPage() {
           <div className="space-y-4">
             <Field label="Role">
               <select
-                value={showRole.role || "employee"}
+                value={showRole.position || roles.find((item) => item.name.toLowerCase() === (showRole.role || "employee").toLowerCase())?.name || showRole.role || "employee"}
                 onChange={(e) => changeRole(showRole, e.target.value)}
               >
-                {EMPLOYEE_ROLES.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
+                {roles.filter((item) => item.isActive || item.name.toLowerCase() === (showRole.position || showRole.role || "").toLowerCase()).map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
               </select>
             </Field>
             <Field label="Department">
@@ -1078,9 +1226,9 @@ export default function FounderTeamPage() {
                 value={showRole.department || "development"}
                 onChange={(e) => changeDepartment(showRole, e.target.value)}
               >
-                {DEPARTMENTS.filter((d) => d !== "management").map((d) => (
-                  <option key={d} value={d}>
-                    {d}
+                {departments.filter((item) => item.isActive || item.name === showRole.department).map((item) => (
+                  <option key={item.id} value={item.name}>
+                    {item.name}
                   </option>
                 ))}
               </select>

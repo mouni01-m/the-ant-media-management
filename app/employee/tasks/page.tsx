@@ -333,8 +333,9 @@ export default function EmployeeTasksPage() {
   const [search, setSearch] = useState("");
 
   const [filter, setFilter] = useState<
-    "all" | "active" | "review" | "changes" | "completed" | "overdue"
+    "all" | "active" | "due-today" | "review" | "changes" | "completed" | "overdue"
   >("all");
+  const [deepLinkedTaskId, setDeepLinkedTaskId] = useState("");
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
@@ -353,6 +354,35 @@ export default function EmployeeTasksPage() {
   const [editingSubmissionText, setEditingSubmissionText] = useState("");
 
   const [notificationCount, setNotificationCount] = useState(0);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requestedFilter = params.get("filter");
+    const frame = window.requestAnimationFrame(() => {
+      if (["active", "due-today", "review", "changes", "completed", "overdue"].includes(requestedFilter || "")) {
+        setFilter(requestedFilter as "active" | "due-today" | "review" | "changes" | "completed" | "overdue");
+      }
+      setDeepLinkedTaskId(params.get("taskId") || "");
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!deepLinkedTaskId) return;
+    const task = tasks.find((item) => item.id === deepLinkedTaskId);
+    if (!task) return;
+    const frame = window.requestAnimationFrame(() => setSelectedTask(task));
+    return () => window.cancelAnimationFrame(frame);
+  }, [tasks, deepLinkedTaskId]);
+
+  function changeFilter(nextFilter: "all" | "active" | "due-today" | "review" | "changes" | "completed" | "overdue") {
+    setFilter(nextFilter);
+    const params = new URLSearchParams(window.location.search);
+    if (nextFilter === "all") params.delete("filter");
+    else params.set("filter", nextFilter);
+    const query = params.toString();
+    window.history.replaceState({}, "", `/employee/tasks${query ? `?${query}` : ""}`);
+  }
 
   useEffect(() => {
     let unsubscribeTasks: (() => void) | null = null;
@@ -543,6 +573,8 @@ export default function EmployeeTasksPage() {
 
   const filteredTasks = useMemo(() => {
     const term = search.trim().toLowerCase();
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
     return tasks.filter((task) => {
       const matchesSearch =
@@ -571,6 +603,9 @@ export default function EmployeeTasksPage() {
 
         case "review":
           return isReview(task.status);
+
+        case "due-today":
+          return Boolean(task.deadline && task.deadline.slice(0, 10) === todayKey);
 
         case "changes":
           return isChangesRequested(task.status);
@@ -1267,7 +1302,7 @@ export default function EmployeeTasksPage() {
     if (!isCompleted(task.status)) return;
     if (
       !window.confirm(
-        `Move "${task.title || "Untitled task"}" to your Recycle Bin?`,
+        `Move the completed task “${task.title || "Untitled task"}” to your Recycle Bin? You can restore it later.`,
       )
     )
       return;
@@ -1275,10 +1310,22 @@ export default function EmployeeTasksPage() {
     try {
       setActionLoading(task.id);
 
-      await moveTaskToRecycleBin(
-        task,
-        "Employee removed completed task from history",
+      if (!user) throw new Error("Your employee session is missing.");
+      const token = await user.getIdToken();
+      const response = await fetch(
+        `/api/employee/tasks/${encodeURIComponent(task.id)}/completed-delete`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        },
       );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error || "Unable to move the task to your Recycle Bin.");
+      }
+
+      setTasks((current) => current.filter((item) => item.id !== task.id));
 
       await notifyFounderAboutDeletion(
         task,
@@ -1289,7 +1336,7 @@ export default function EmployeeTasksPage() {
       alert("Completed task moved to your Recycle Bin.");
     } catch (error) {
       console.error("DELETE COMPLETED TASK ERROR:", error);
-      alert("Unable to move the completed task to the Recycle Bin.");
+      alert(error instanceof Error ? error.message : "Unable to move the completed task to the Recycle Bin.");
     } finally {
       setActionLoading(null);
     }
@@ -1359,8 +1406,8 @@ export default function EmployeeTasksPage() {
           <div className="h-full flex flex-col">
             {/* BRAND */}
 
-            <div className="h-[82px] px-6 flex items-center border-b border-[var(--brand-border)]">
-              <BrandLogo className="h-[72px] w-[205px]" priority />
+            <div className="h-[82px] px-2 flex items-center justify-center border-b border-[var(--brand-border)]">
+              <BrandLogo priority />
             </div>
 
             {/* PROFILE */}
@@ -1625,7 +1672,7 @@ export default function EmployeeTasksPage() {
                 <div className="flex gap-2 overflow-x-auto">
                   <FilterButton
                     active={filter === "all"}
-                    onClick={() => setFilter("all")}
+                    onClick={() => changeFilter("all")}
                   >
                     <Filter size={15} />
                     All
@@ -1633,7 +1680,7 @@ export default function EmployeeTasksPage() {
 
                   <FilterButton
                     active={filter === "active"}
-                    onClick={() => setFilter("active")}
+                    onClick={() => changeFilter("active")}
                   >
                     Active
                     <span className="text-[10px] opacity-60">
@@ -1642,8 +1689,15 @@ export default function EmployeeTasksPage() {
                   </FilterButton>
 
                   <FilterButton
+                    active={filter === "due-today"}
+                    onClick={() => changeFilter("due-today")}
+                  >
+                    Due today
+                  </FilterButton>
+
+                  <FilterButton
                     active={filter === "review"}
-                    onClick={() => setFilter("review")}
+                    onClick={() => changeFilter("review")}
                   >
                     Review
                     <span className="text-[10px] opacity-60">
@@ -1653,7 +1707,7 @@ export default function EmployeeTasksPage() {
 
                   <FilterButton
                     active={filter === "changes"}
-                    onClick={() => setFilter("changes")}
+                    onClick={() => changeFilter("changes")}
                   >
                     Changes
                     <span className="text-[10px] opacity-60">
@@ -1663,14 +1717,14 @@ export default function EmployeeTasksPage() {
 
                   <FilterButton
                     active={filter === "overdue"}
-                    onClick={() => setFilter("overdue")}
+                    onClick={() => changeFilter("overdue")}
                   >
                     Overdue
                   </FilterButton>
 
                   <FilterButton
                     active={filter === "completed"}
-                    onClick={() => setFilter("completed")}
+                    onClick={() => changeFilter("completed")}
                   >
                     Completed
                   </FilterButton>
@@ -1688,6 +1742,8 @@ export default function EmployeeTasksPage() {
                       ? "All My Tasks"
                       : filter === "active"
                         ? "Active Tasks"
+                        : filter === "due-today"
+                          ? "Due Today"
                         : filter === "review"
                           ? "Tasks Under Review"
                           : filter === "changes"
@@ -1779,11 +1835,28 @@ export default function EmployeeTasksPage() {
                                 </p>
                               </div>
 
-                              <span
-                                className={`w-fit shrink-0 text-xs px-2.5 py-1.5 rounded-lg border ${status.className}`}
-                              >
-                                {status.label}
-                              </span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span
+                                  className={`w-fit text-xs px-2.5 py-1.5 rounded-lg border ${status.className}`}
+                                >
+                                  {status.label}
+                                </span>
+                                {isCompleted(task.status) && (
+                                  <button
+                                    type="button"
+                                    aria-label={`Move completed task ${task.title || "Untitled task"} to Recycle Bin`}
+                                    title="Move to Recycle Bin"
+                                    disabled={actionLoading === task.id}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void deleteCompletedTask(task);
+                                    }}
+                                    className="rounded-lg p-2 text-[var(--brand-medium-gray)] transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-50"
+                                  >
+                                    <Trash2 size={16} aria-hidden="true" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
 
                             {/* META */}

@@ -49,6 +49,7 @@ function responseProfile(user: DocumentData, fields: Record<string, string>, rev
       fullName: String(user.name || ""),
       email: String(user.email || ""),
       role: String(user.role || "employee"),
+      position: String(user.position || user.role || "employee"),
       department: String(user.department || ""),
       active: user.active === true,
       joiningDate: dateString(user.joiningDate) || dateString(user.createdAt),

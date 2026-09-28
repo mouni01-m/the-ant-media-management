@@ -31,11 +31,13 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
   collection,
   doc,
+  getDocs,
   onSnapshot,
   query,
   where,
   updateDoc,
   serverTimestamp,
+  setDoc,
 } from "firebase/firestore";
 
 import { auth, db } from "@/lib/firebase";
@@ -73,9 +75,13 @@ type Task = {
 };
 
 type Attendance = {
+  id?: string;
   date?: string;
+  userId?: string;
   checkIn?: unknown;
+  checkInAt?: unknown;
   checkOut?: unknown;
+  checkOutAt?: unknown;
   status?: string;
   totalHours?: number;
 };
@@ -267,10 +273,19 @@ export default function EmployeePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
 
   const [todayAttendance, setTodayAttendance] = useState<Attendance | null>(
     null,
   );
+  const [attendanceLoading, setAttendanceLoading] = useState(true);
+  const [attendanceActionLoading, setAttendanceActionLoading] = useState(false);
+  const [attendanceError, setAttendanceError] = useState("");
+  const [attendanceSuccess, setAttendanceSuccess] = useState("");
+  const [attendanceReadError, setAttendanceReadError] = useState(false);
+  const [onApprovedLeave, setOnApprovedLeave] = useState(false);
+  const [leaveLoading, setLeaveLoading] = useState(true);
+  const [leaveReadError, setLeaveReadError] = useState(false);
 
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
@@ -292,6 +307,8 @@ export default function EmployeePage() {
     let unsubscribeTasks: (() => void) | null = null;
     let unsubscribeAttendance: (() => void) | null = null;
     let unsubscribeNotifications: (() => void) | null = null;
+    let unsubscribeLeave: (() => void) | null = null;
+    let unsubscribeProfile: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (!user) {
@@ -311,7 +328,7 @@ export default function EmployeePage() {
 
       const profileRef = doc(db, "users", user.uid);
 
-      const unsubscribeProfile = onSnapshot(
+      unsubscribeProfile = onSnapshot(
         profileRef,
         (snapshot) => {
           if (!snapshot.exists()) {
@@ -356,58 +373,94 @@ export default function EmployeePage() {
       /* TASKS                                                              */
       /* ---------------------------------------------------------------- */
 
-      const tasksQuery = query(
+      const assignedTasksQuery = query(
         collection(db, "tasks"),
         where("assignedTo", "==", user.uid),
       );
+      const teamTasksQuery = query(
+        collection(db, "tasks"),
+        where("teamMemberIds", "array-contains", user.uid),
+      );
+      const assignedTasks = new Map<string, Task>();
+      const teamTasks = new Map<string, Task>();
+      const publishTasks = () => {
+        const combined = new Map([...assignedTasks, ...teamTasks]);
+        const items = Array.from(combined.values());
+        items.sort((a, b) => getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt));
+        setTasks(items);
+        setTasksLoading(false);
+      };
 
       unsubscribeTasks = onSnapshot(
-        tasksQuery,
+        assignedTasksQuery,
         (snapshot) => {
-          const items: Task[] = snapshot.docs.map(
-            (item) =>
-              ({
-                id: item.id,
-                ...item.data(),
-              }) as Task,
-          );
-
-          items.sort(
-            (a, b) =>
-              getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt),
-          );
-
-          setTasks(items);
+          assignedTasks.clear();
+          snapshot.docs.forEach((item) => assignedTasks.set(item.id, { id: item.id, ...item.data() } as Task));
+          publishTasks();
         },
         (error) => {
           console.error("Tasks listener error:", error);
-
-          setTasks([]);
+          publishTasks();
         },
       );
+      const unsubscribeTeamTasks = onSnapshot(
+        teamTasksQuery,
+        (snapshot) => {
+          teamTasks.clear();
+          snapshot.docs.forEach((item) => teamTasks.set(item.id, { id: item.id, ...item.data() } as Task));
+          publishTasks();
+        },
+        (error) => {
+          console.error("Team tasks listener error:", error);
+          publishTasks();
+        },
+      );
+      const unsubscribeAssignedTasks = unsubscribeTasks;
+      unsubscribeTasks = () => { unsubscribeAssignedTasks?.(); unsubscribeTeamTasks(); };
 
       /* ---------------------------------------------------------------- */
       /* ATTENDANCE                                                        */
       /* ---------------------------------------------------------------- */
 
       const todayKey = getTodayKey();
-
-      const attendanceRef = doc(db, "attendance", `${user.uid}_${todayKey}`);
-
+      const attendanceQuery = query(
+        collection(db, "attendance"),
+        where("userId", "==", user.uid),
+        where("date", "==", todayKey),
+      );
       unsubscribeAttendance = onSnapshot(
-        attendanceRef,
+        attendanceQuery,
         (snapshot) => {
-          if (!snapshot.exists()) {
-            setTodayAttendance(null);
-            return;
-          }
-
-          setTodayAttendance(snapshot.data() as Attendance);
+          const todayRecord = snapshot.docs[0];
+          setTodayAttendance(todayRecord ? { id: todayRecord.id, ...todayRecord.data() } as Attendance : null);
+          setAttendanceReadError(false);
+          setAttendanceLoading(false);
         },
         (error) => {
           console.error("Attendance listener error:", error);
+          setAttendanceReadError(true);
+          setAttendanceError("Unable to load today's attendance. Please refresh and try again.");
+          setAttendanceLoading(false);
+        },
+      );
 
-          setTodayAttendance(null);
+      const leaveQuery = query(collection(db, "leaveRequests"), where("userId", "==", user.uid));
+      unsubscribeLeave = onSnapshot(
+        leaveQuery,
+        (snapshot) => {
+          const today = getTodayKey();
+          setOnApprovedLeave(snapshot.docs.some((item) => {
+            const leave = item.data();
+            return leave.status === "APPROVED" && typeof leave.startDate === "string" && typeof leave.endDate === "string" && leave.startDate <= today && leave.endDate >= today;
+          }));
+          setLeaveReadError(false);
+          setLeaveLoading(false);
+        },
+        (error) => {
+          console.error("Employee leave status listener error:", error);
+          setLeaveReadError(true);
+          setAttendanceError("Unable to verify approved leave status. Attendance actions are disabled until it can be checked.");
+          setLeaveLoading(false);
         },
       );
 
@@ -438,9 +491,6 @@ export default function EmployeePage() {
         },
       );
 
-      return () => {
-        unsubscribeProfile();
-      };
     });
 
     return () => {
@@ -457,6 +507,8 @@ export default function EmployeePage() {
       if (unsubscribeNotifications) {
         unsubscribeNotifications();
       }
+      if (unsubscribeLeave) unsubscribeLeave();
+      if (unsubscribeProfile) unsubscribeProfile();
     };
   }, []);
 
@@ -478,6 +530,8 @@ export default function EmployeePage() {
     () => tasks.filter((task) => isCompletedStatus(task.status)),
     [tasks],
   );
+
+  const onLeaveToday = onApprovedLeave || ["LEAVE", "ON LEAVE"].includes(String(todayAttendance?.status || "").toUpperCase());
 
   const overdueTasks = useMemo(
     () => tasks.filter((task) => isTaskOverdue(task)),
@@ -555,6 +609,77 @@ export default function EmployeePage() {
     }, 400);
   }
 
+  async function handleAttendanceAction() {
+    const user = auth.currentUser;
+    if (!user || attendanceActionLoading || onLeaveToday || attendanceLoading || leaveLoading || attendanceReadError || leaveReadError) return;
+    setAttendanceError("");
+    setAttendanceSuccess("");
+    setAttendanceActionLoading(true);
+    const today = getTodayKey();
+    try {
+      if (!todayAttendance?.checkIn) {
+        const existing = await getDocs(query(
+          collection(db, "attendance"),
+          where("userId", "==", user.uid),
+          where("date", "==", today),
+        ));
+        const existingRecord = existing.docs.find((item) => Boolean(item.data().checkIn));
+        if (existingRecord) {
+          setTodayAttendance({ id: existingRecord.id, ...existingRecord.data() } as Attendance);
+          setAttendanceError("You have already checked in today.");
+          return;
+        }
+        const now = new Date();
+        const checkIn = now.toISOString();
+        const attendanceRef = existing.docs[0]?.ref || doc(db, "attendance", `${user.uid}_${today}`);
+        const record = {
+          userId: user.uid,
+          userName: profile?.name || user.displayName || user.email?.split("@")[0] || "Employee",
+          userEmail: profile?.email || user.email || "",
+          role: profile?.role || "employee",
+          department: profile?.department || "",
+          date: today,
+          checkIn,
+          checkInAt: checkIn,
+          checkOut: "",
+          checkOutAt: "",
+          totalHours: 0,
+          status: now.getHours() > 9 || (now.getHours() === 9 && now.getMinutes() >= 15) ? "Late" : "Present",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+        await setDoc(attendanceRef, record);
+        setTodayAttendance({ ...record, id: attendanceRef.id, createdAt: new Date() } as Attendance);
+        setAttendanceSuccess(`Checked in at ${formatTimeValue(checkIn)}.`);
+        return;
+      }
+
+      if (!todayAttendance.id) throw new Error("Today's attendance record could not be identified.");
+      if (todayAttendance.checkOut) {
+        setAttendanceError("You have already checked out today.");
+        return;
+      }
+      const checkInTime = new Date(String(todayAttendance.checkIn)).getTime();
+      if (!Number.isFinite(checkInTime)) throw new Error("The check-in time is invalid. Please contact the Founder.");
+      const now = new Date();
+      const checkOut = now.toISOString();
+      const totalHours = Number(Math.max(0, now.getTime() - checkInTime) / 3600000).toFixed(2);
+      await updateDoc(doc(db, "attendance", todayAttendance.id), {
+        checkOut,
+        checkOutAt: checkOut,
+        totalHours: Number(totalHours),
+        updatedAt: serverTimestamp(),
+      });
+      setTodayAttendance({ ...todayAttendance, checkOut, checkOutAt: checkOut, totalHours: Number(totalHours) });
+      setAttendanceSuccess(`Checked out at ${formatTimeValue(checkOut)}.`);
+    } catch (error) {
+      console.error("Employee overview attendance action failed:", error);
+      setAttendanceError(error instanceof Error ? error.message : "Unable to update attendance. Please try again.");
+    } finally {
+      setAttendanceActionLoading(false);
+    }
+  }
+
   async function handleStartTask() {
     if (!selectedTask) return;
 
@@ -626,9 +751,9 @@ export default function EmployeePage() {
         <div className="h-full flex flex-col">
           {/* BRAND */}
 
-          <div className="px-6 py-6 border-b border-[var(--brand-border)]">
-            <div className="flex items-center gap-3">
-              <BrandLogo className="h-[72px] w-[205px]" priority />
+          <div className="flex h-[82px] items-center justify-center border-b border-[var(--brand-border)] px-2">
+            <div className="flex w-full items-center justify-center gap-3">
+              <BrandLogo priority />
             </div>
           </div>
 
@@ -825,32 +950,36 @@ export default function EmployeePage() {
               icon={<Target size={19} />}
               label="Active Tasks"
               value={activeTasks.length}
-              description="Currently assigned"
+              description={tasksLoading ? "Loading tasks…" : "Currently assigned"}
               accent="brand"
+              onClick={() => navigate("/employee/tasks?filter=active")}
             />
 
             <DashboardStat
               icon={<Clock3 size={19} />}
               label="Due Today"
               value={dueTodayTasks.length}
-              description="Needs attention today"
+              description={tasksLoading ? "Loading tasks…" : "Needs attention today"}
               accent="brand"
+              onClick={() => navigate("/employee/tasks?filter=due-today")}
             />
 
             <DashboardStat
               icon={<MessageSquare size={19} />}
               label="In Review"
               value={reviewTasks.length}
-              description="Waiting for review"
+              description={tasksLoading ? "Loading tasks…" : "Waiting for review"}
               accent="brand"
+              onClick={() => navigate("/employee/tasks?filter=review")}
             />
 
             <DashboardStat
               icon={<CheckCircle2 size={19} />}
               label="Completed"
               value={completedTasks.length}
-              description="Finished work"
+              description={tasksLoading ? "Loading tasks…" : "Finished work"}
               accent="emerald"
+              onClick={() => navigate("/employee/tasks?filter=completed")}
             />
           </section>
 
@@ -882,7 +1011,9 @@ export default function EmployeePage() {
                 </button>
               </div>
 
-              {tasks.length === 0 ? (
+              {tasksLoading ? (
+                <div className="flex items-center justify-center gap-2 py-16 text-sm text-[var(--brand-medium-gray)]"><Loader2 size={16} className="animate-spin" />Loading your tasks…</div>
+              ) : tasks.length === 0 ? (
                 <div className="py-16 px-6 text-center">
                   <div className="w-14 h-14 mx-auto rounded-2xl bg-white border border-[var(--brand-border)] flex items-center justify-center text-[var(--brand-black)]">
                     <Target size={23} />
@@ -900,7 +1031,8 @@ export default function EmployeePage() {
                     <button
                       key={task.id}
                       onClick={() => setSelectedTask(task)}
-                      className="w-full text-left p-5 md:px-6 hover:bg-[var(--brand-red-light)] transition"
+                      aria-label={`Open task ${task.title || "Untitled task"}`}
+                      className="w-full cursor-pointer text-left p-5 md:px-6 hover:bg-[var(--brand-red-light)] transition"
                     >
                       <div className="flex items-start gap-4">
                         <div className="w-10 h-10 shrink-0 rounded-xl bg-[var(--brand-red)]/10 text-[var(--brand-red)] border border-[var(--brand-red-secondary)]/10 flex items-center justify-center">
@@ -1011,17 +1143,21 @@ export default function EmployeePage() {
                       </p>
 
                       <p className="text-sm font-semibold mt-1">
-                        {todayAttendance?.checkOut
-                          ? "Workday completed"
-                          : todayAttendance?.checkIn
-                            ? "Checked in"
-                            : "Not checked in"}
+                        {attendanceLoading || leaveLoading
+                          ? "Loading attendance…"
+                          : onLeaveToday
+                            ? "On Leave"
+                            : todayAttendance?.checkOut
+                              ? "Attendance completed"
+                              : todayAttendance?.checkIn
+                                ? "Checked in"
+                                : "Not checked in"}
                       </p>
                     </div>
 
-                    {todayAttendance?.status && (
+                    {(onLeaveToday || todayAttendance?.status) && (
                       <span className="px-2.5 py-1 rounded-full border border-[var(--brand-border)] bg-white text-[10px] uppercase tracking-wide text-[var(--brand-black)]">
-                        {todayAttendance.status}
+                        {onLeaveToday ? "On Leave" : todayAttendance?.status}
                       </span>
                     )}
                   </div>
@@ -1045,12 +1181,27 @@ export default function EmployeePage() {
                   ) : null}
                 </div>
 
+                {(attendanceError || attendanceSuccess) && (
+                  <p role={attendanceError ? "alert" : "status"} className={`mt-3 rounded-lg p-3 text-xs ${attendanceError ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
+                    {attendanceError || attendanceSuccess}
+                  </p>
+                )}
+                {!onLeaveToday && !todayAttendance?.checkOut && (
+                  <button
+                    onClick={() => void handleAttendanceAction()}
+                    disabled={attendanceLoading || leaveLoading || attendanceActionLoading || attendanceReadError || leaveReadError}
+                    className="w-full mt-4 h-11 rounded-xl bg-[var(--brand-red)] text-white hover:opacity-90 disabled:opacity-50 text-sm font-semibold flex items-center justify-center gap-2 transition"
+                  >
+                    {attendanceActionLoading ? <Loader2 size={15} className="animate-spin" /> : <UserCheck size={15} />}
+                    {attendanceActionLoading ? "Saving…" : todayAttendance?.checkIn ? "Check Out" : "Check In"}
+                  </button>
+                )}
+                {Boolean(todayAttendance?.checkOut) && <p className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-50 px-4 py-3 text-center text-sm font-medium text-emerald-800">Attendance completed for today</p>}
                 <button
                   onClick={() => navigate("/employee/attendance")}
-                  className="w-full mt-4 h-11 rounded-xl border border-[var(--brand-border)] bg-white hover:bg-[var(--brand-red-light)] text-sm font-medium flex items-center justify-center gap-2 transition"
+                  className="w-full mt-3 h-10 rounded-xl border border-[var(--brand-border)] bg-white hover:bg-[var(--brand-red-light)] text-xs font-medium flex items-center justify-center gap-2 transition"
                 >
-                  Open Attendance
-                  <ArrowRight size={15} />
+                  View attendance history <ArrowRight size={14} />
                 </button>
               </div>
 
@@ -1408,12 +1559,14 @@ function DashboardStat({
   value,
   description,
   accent,
+  onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number;
   description: string;
   accent: "brand" | "emerald";
+  onClick: () => void;
 }) {
   const accentClasses = {
     brand:
@@ -1422,7 +1575,12 @@ function DashboardStat({
   };
 
   return (
-    <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-4 transition hover:border-[var(--brand-border)] md:p-5">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${label}: ${value}. ${description}. Open filtered tasks.`}
+      className="w-full cursor-pointer rounded-2xl border border-[var(--brand-border)] bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[var(--brand-red-secondary)]/40 hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--brand-red)] md:p-5"
+    >
       <div
         className={`w-10 h-10 rounded-xl border flex items-center justify-center mb-4 ${accentClasses[accent]}`}
       >
@@ -1436,7 +1594,7 @@ function DashboardStat({
       <p className="text-[11px] text-[var(--brand-medium-gray)] mt-1">
         {description}
       </p>
-    </div>
+    </button>
   );
 }
 

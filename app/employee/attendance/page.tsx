@@ -531,8 +531,8 @@ export default function EmployeeAttendancePage() {
           <div className="h-full flex flex-col">
             {/* BRAND */}
 
-            <div className="h-[82px] px-6 flex items-center border-b border-[var(--brand-border)]">
-              <BrandLogo className="h-[72px] w-[205px]" priority />
+            <div className="h-[82px] px-2 flex items-center justify-center border-b border-[var(--brand-border)]">
+              <BrandLogo priority />
             </div>
 
             {/* PROFILE */}
