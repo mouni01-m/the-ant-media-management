@@ -23,7 +23,7 @@ type Connection = {
 };
 
 export class GoogleCalendarReconnectRequiredError extends Error {
-  readonly code = "GOOGLE_CALENDAR_RECONNECT_REQUIRED";
+  readonly code = "GOOGLE_CALENDAR_REAUTH_REQUIRED";
   readonly failure: NonNullable<Connection["credentialFailure"]>;
 
   constructor(failure: NonNullable<Connection["credentialFailure"]> = "refresh_rejected") {

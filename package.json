@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:credentials": "node --experimental-strip-types --test tests/client-credentials.test.mjs"
   },
   "dependencies": {
     "@googleapis/calendar": "^20.0.0",

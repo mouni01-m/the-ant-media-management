@@ -48,7 +48,12 @@ export async function GET(request: NextRequest) {
         await markConnectionNeedsReconnect(auth.uid, error.failure);
         return Response.json({ connected: false, needsAttention: true, email: value.email });
       }
-      throw error;
+      console.error("[Google Calendar] connection health validation failed", {
+        stage,
+        errorType: error instanceof Error ? error.name : "UnknownError",
+        code: (error as { code?: string })?.code || "unknown",
+      });
+      return Response.json({ connected: false, needsAttention: true, email: value.email });
     }
   } catch (error) {
     console.error("[Google Calendar] status health check failed", {

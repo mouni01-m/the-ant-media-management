@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     if (isReconnectRequired(error)) {
       console.warn("[Google Calendar] calendar credential rejected", { stage, failure: error.failure });
       await markConnectionNeedsReconnect(auth.uid, error.failure);
-      return Response.json({ error: "Google Calendar needs to be reconnected.", code: error.code }, { status: 409 });
+      return Response.json({ error: error.code, message: "Google Calendar connection needs to be reconnected." }, { status: 409 });
     }
     console.error("[Google Calendar] calendars request failed", { stage, errorType: error instanceof Error ? error.name : "UnknownError", code: (error as { code?: string })?.code || "unknown" });
     return Response.json({ error: "Unable to load Google calendars. Please try again." }, { status: 502 });
@@ -52,7 +52,7 @@ export async function PATCH(request: NextRequest) {
     if (isReconnectRequired(error)) {
       console.warn("[Google Calendar] calendar credential rejected", { failure: error.failure });
       await markConnectionNeedsReconnect(auth.uid, error.failure);
-      return Response.json({ error: "Google Calendar needs to be reconnected.", code: error.code }, { status: 409 });
+      return Response.json({ error: error.code, message: "Google Calendar connection needs to be reconnected." }, { status: 409 });
     }
     console.error("[Google Calendar] calendar selection failed", { errorType: error instanceof Error ? error.name : "UnknownError", code: (error as { code?: string })?.code || "unknown" });
     return Response.json({ error: "Unable to select that calendar." }, { status: 502 });

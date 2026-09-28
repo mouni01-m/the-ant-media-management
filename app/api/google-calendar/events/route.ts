@@ -21,7 +21,7 @@ async function context(request: NextRequest) {
     if (isReconnectRequired(error)) {
       console.warn("[Google Calendar] event credential rejected", { failure: error.failure });
       await markConnectionNeedsReconnect(auth.uid, error.failure);
-      return { error: Response.json({ error: "Google Calendar needs to be reconnected.", code: error.code }, { status: 409 }) };
+      return { error: Response.json({ error: error.code, message: "Google Calendar connection needs to be reconnected." }, { status: 409 }) };
     }
     throw error;
   }
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     if (isReconnectRequired(error)) {
       console.warn("[Google Calendar] event credential rejected", { stage, failure: error.failure });
       if (uid) await markConnectionNeedsReconnect(uid, error.failure);
-      return Response.json({ error: "Google Calendar needs to be reconnected.", code: error.code }, { status: 409 });
+      return Response.json({ error: error.code, message: "Google Calendar connection needs to be reconnected." }, { status: 409 });
     }
     console.error("[Google Calendar] events.list failed", { stage, errorType: error instanceof Error ? error.name : "UnknownError", code: (error as { code?: string })?.code || "unknown" });
     return Response.json({ error: "Unable to load Google Calendar events. Please try again." }, { status: 502 });
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     if (isReconnectRequired(error)) {
       console.warn("[Google Calendar] event credential rejected", { stage, failure: error.failure });
       if (uid) await markConnectionNeedsReconnect(uid, error.failure);
-      return Response.json({ error: "Google Calendar needs to be reconnected.", code: error.code }, { status: 409 });
+      return Response.json({ error: error.code, message: "Google Calendar connection needs to be reconnected." }, { status: 409 });
     }
     console.error("[Google Calendar] events.insert failed", { stage, errorType: error instanceof Error ? error.name : "UnknownError", code: (error as { code?: string })?.code || "unknown" });
     return Response.json({ error: "Google Calendar event creation failed. Please try again." }, { status: 502 });
@@ -110,7 +110,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     if (isReconnectRequired(error)) {
       if (uid) await markConnectionNeedsReconnect(uid, error.failure);
-      return Response.json({ error: "Google Calendar needs to be reconnected.", code: error.code }, { status: 409 });
+      return Response.json({ error: error.code, message: "Google Calendar connection needs to be reconnected." }, { status: 409 });
     }
     console.error("[Google Calendar] events.update failed", { errorType: error instanceof Error ? error.name : "UnknownError", code: (error as { code?: string })?.code || "unknown" });
     return Response.json({ error: "Google Calendar event update failed. Please try again." }, { status: 502 });
@@ -132,7 +132,7 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     if (isReconnectRequired(error)) {
       if (uid) await markConnectionNeedsReconnect(uid, error.failure);
-      return Response.json({ error: "Google Calendar needs to be reconnected.", code: error.code }, { status: 409 });
+      return Response.json({ error: error.code, message: "Google Calendar connection needs to be reconnected." }, { status: 409 });
     }
     console.error("[Google Calendar] events.delete failed", { errorType: error instanceof Error ? error.name : "UnknownError", code: (error as { code?: string })?.code || "unknown" });
     return Response.json({ error: "Google Calendar event deletion failed. Please try again." }, { status: 502 });
