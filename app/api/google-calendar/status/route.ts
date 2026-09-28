@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
-  let stage = "Firebase Admin and Founder auth initialization";
+  let stage = "Founder authentication";
   try {
     const { requireFounder } = await import("@/lib/client-api-auth");
     stage = "Founder session validation";
@@ -9,27 +9,52 @@ export async function GET(request: NextRequest) {
     if (auth.error) return auth.error;
 
     stage = "Google Calendar connection lookup";
-    const { connection, isOfficialCalendarAccount } = await import("@/lib/founder-google-calendar");
+    const { connection, getRefreshToken, refreshGoogleToken, googleRequest, isOfficialCalendarAccount, isReconnectRequired, markConnectionNeedsReconnect } = await import("@/lib/founder-google-calendar");
     const value = await connection(auth.uid);
-    return Response.json(value
-      ? { connected: true, email: value.email, accountMatchesTarget: isOfficialCalendarAccount(value.email), calendarId: value.calendarId, calendarName: value.calendarName }
-      : { connected: false });
+    console.info("[Google Calendar] credential lookup completed", { credentialRecordFound: Boolean(value) });
+    if (!value) return Response.json({ connected: false });
+
+    try {
+      if (value.credentialStatus === "needs_reconnect") {
+        return Response.json({ connected: false, needsAttention: true, email: value.email });
+      }
+      stage = "Stored refresh-token decryption";
+      console.info("[Google Calendar] credential decryption started");
+      const refreshToken = getRefreshToken(value);
+      console.info("[Google Calendar] credential decryption succeeded");
+      stage = "Google access-token refresh";
+      console.info("[Google Calendar] access token refresh started");
+      const accessToken = await refreshGoogleToken(refreshToken);
+      console.info("[Google Calendar] access token refresh succeeded");
+      stage = "Google account identity verification";
+      const identity = await googleRequest<{ email?: string; email_verified?: boolean }>(
+        "https://openidconnect.googleapis.com/v1/userinfo",
+        accessToken,
+      );
+      if (identity.email_verified !== true || !identity.email || identity.email.toLowerCase() !== value.email.toLowerCase()) {
+        console.warn("[Google Calendar] stored account identity does not match the verified account");
+        await markConnectionNeedsReconnect(auth.uid, "refresh_rejected");
+        return Response.json({ connected: false, needsAttention: true, email: value.email });
+      }
+      stage = "Google Calendar API authorization check";
+      console.info("[Google Calendar] calendars.list health check started");
+      await googleRequest("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1", accessToken);
+      console.info("[Google Calendar] calendars.list health check succeeded");
+      console.info("[Google Calendar] account health check succeeded");
+      return Response.json({ connected: true, email: value.email, accountMatchesTarget: isOfficialCalendarAccount(value.email), calendarId: value.calendarId, calendarName: value.calendarName });
+    } catch (error) {
+      if (isReconnectRequired(error)) {
+        console.warn("[Google Calendar] stored credentials need reconnect", { failure: error.failure });
+        await markConnectionNeedsReconnect(auth.uid, error.failure);
+        return Response.json({ connected: false, needsAttention: true, email: value.email });
+      }
+      throw error;
+    }
   } catch (error) {
-    console.error("[Google Calendar] status initialization failed", {
+    console.error("[Google Calendar] status health check failed", {
       stage,
-      error: error instanceof Error ? error.message : String(error),
-      hasGoogleClientId: Boolean(process.env.GOOGLE_CLIENT_ID),
-      hasGoogleClientSecret: Boolean(process.env.GOOGLE_CLIENT_SECRET),
-      hasGoogleRedirectUri: Boolean(process.env.GOOGLE_REDIRECT_URI),
-      hasOAuthStateSecret: Boolean(process.env.GOOGLE_OAUTH_STATE_SECRET),
-      hasEncryptionKey: Boolean(process.env.CLIENT_CREDENTIALS_ENCRYPTION_KEY),
-      hasFirebaseProjectId: Boolean(process.env.FIREBASE_PROJECT_ID),
-      hasPublicFirebaseProjectId: Boolean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
-      hasFirebaseServiceAccountJson: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON),
-      hasFirebaseClientEmail: Boolean(process.env.FIREBASE_CLIENT_EMAIL),
-      hasFirebasePrivateKey: Boolean(process.env.FIREBASE_PRIVATE_KEY),
-      hasFirebaseAdminConfig: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY)),
-      hasGoogleApplicationCredentials: Boolean(process.env.GOOGLE_APPLICATION_CREDENTIALS),
+      errorType: error instanceof Error ? error.name : "UnknownError",
+      code: (error as { code?: string })?.code || "unknown",
     });
     return Response.json({ error: "Google Calendar status is temporarily unavailable. Please contact the administrator.", code: "GOOGLE_CALENDAR_STATUS_UNAVAILABLE" }, { status: 503 });
   }

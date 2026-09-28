@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
       ["GOOGLE_CLIENT_SECRET", config.hasClientSecret],
       ["GOOGLE_REDIRECT_URI", config.hasRedirectUri],
       ["GOOGLE_OAUTH_STATE_SECRET", config.hasOAuthStateSecret],
+      ["CLIENT_CREDENTIALS_ENCRYPTION_KEY", config.hasEncryptionKey],
     ].filter(([, present]) => !present).map(([name]) => name);
     if (missing.length) {
       console.error("[Google Calendar] connect is missing required configuration", { missing, ...config });

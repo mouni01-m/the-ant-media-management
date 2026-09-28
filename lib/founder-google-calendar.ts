@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { adminDb } from "@/lib/firebase-admin";
-import { decryptCredential, encryptCredential } from "@/lib/client-credentials";
+import { CredentialDecryptionError, decryptCredential, encryptCredential } from "@/lib/client-credentials";
 
 export const GOOGLE_CALENDAR_EMAIL = "theantmediaa@gmail.com";
 export const GOOGLE_CALENDAR_SCOPES = [
@@ -18,7 +18,20 @@ type Connection = {
   refreshTokenIv: string;
   refreshTokenTag: string;
   connectedAt: string;
+  credentialStatus?: "needs_reconnect";
+  credentialFailure?: "decryption_failed" | "refresh_rejected";
 };
+
+export class GoogleCalendarReconnectRequiredError extends Error {
+  readonly code = "GOOGLE_CALENDAR_RECONNECT_REQUIRED";
+  readonly failure: NonNullable<Connection["credentialFailure"]>;
+
+  constructor(failure: NonNullable<Connection["credentialFailure"]> = "refresh_rejected") {
+    super("Google Calendar needs to be reconnected.");
+    this.name = "GoogleCalendarReconnectRequiredError";
+    this.failure = failure;
+  }
+}
 
 function required(name: string) {
   const value = process.env[name];
@@ -97,6 +110,7 @@ export async function exchangeCode(code: string) {
 
 export async function googleRequest<T>(url: string, accessToken: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...init, headers: { Authorization: `Bearer ${accessToken}`, ...(init?.headers || {}) }, cache: "no-store" });
+  if (response.status === 401) throw new GoogleCalendarReconnectRequiredError("refresh_rejected");
   if (!response.ok) throw new Error(`Google Calendar API request failed (${response.status})`);
   if (response.status === 204) return {} as T;
   return response.json() as Promise<T>;
@@ -107,8 +121,11 @@ export async function refreshGoogleToken(refreshToken: string) {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ client_id: googleClientId(), client_secret: required("GOOGLE_CLIENT_SECRET"), refresh_token: refreshToken, grant_type: "refresh_token" }), cache: "no-store",
   });
-  const data = await response.json();
-  if (!response.ok || !data.access_token) throw new Error("Google Calendar authorization expired. Please reconnect.");
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token) {
+    if (data.error === "invalid_grant") throw new GoogleCalendarReconnectRequiredError("refresh_rejected");
+    throw new Error(`Google access-token refresh failed (${response.status}).`);
+  }
   return data.access_token as string;
 }
 
@@ -126,12 +143,33 @@ export async function saveConnection(uid: string, values: Omit<Connection, "refr
   });
 }
 
+export async function markConnectionNeedsReconnect(uid: string, failure: NonNullable<Connection["credentialFailure"]>) {
+  await adminDb.collection("googleCalendarConnections").doc(uid).update({
+    credentialStatus: "needs_reconnect",
+    credentialFailure: failure,
+    needsReconnectAt: new Date().toISOString(),
+  });
+}
+
 export function getRefreshToken(value: Connection) {
-  return decryptCredential(value.refreshTokenCiphertext, value.refreshTokenIv, value.refreshTokenTag);
+  if (value.credentialStatus === "needs_reconnect") throw new GoogleCalendarReconnectRequiredError(value.credentialFailure || "decryption_failed");
+  if (!value.refreshTokenCiphertext || !value.refreshTokenIv || !value.refreshTokenTag) {
+    throw new GoogleCalendarReconnectRequiredError("decryption_failed");
+  }
+  try {
+    return decryptCredential(value.refreshTokenCiphertext, value.refreshTokenIv, value.refreshTokenTag);
+  } catch (error) {
+    if (error instanceof CredentialDecryptionError) throw new GoogleCalendarReconnectRequiredError("decryption_failed");
+    throw error;
+  }
 }
 
 export async function getAccessToken(value: Connection) {
   return refreshGoogleToken(getRefreshToken(value));
+}
+
+export function isReconnectRequired(error: unknown): error is GoogleCalendarReconnectRequiredError {
+  return error instanceof GoogleCalendarReconnectRequiredError;
 }
 
 export function isOfficialCalendarAccount(email: string) {

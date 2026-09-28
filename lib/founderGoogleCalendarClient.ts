@@ -27,7 +27,7 @@ async function api(path: string, init: RequestInit = {}) {
   return data;
 }
 
-export type FounderCalendarConnection = { connected: boolean; email?: string; accountMatchesTarget?: boolean; calendarId?: string; calendarName?: string };
+export type FounderCalendarConnection = { connected: boolean; needsAttention?: boolean; email?: string; accountMatchesTarget?: boolean; calendarId?: string; calendarName?: string };
 export async function getFounderCalendarConnection() { return api("/api/google-calendar/status") as Promise<FounderCalendarConnection>; }
 export async function startFounderCalendarConnection() {
   const result = await api("/api/google-calendar/connect", { method: "POST" });

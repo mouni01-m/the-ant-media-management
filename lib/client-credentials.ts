@@ -1,5 +1,12 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
+export class CredentialDecryptionError extends Error {
+  constructor() {
+    super("Stored credential could not be authenticated with the configured encryption key.");
+    this.name = "CredentialDecryptionError";
+  }
+}
+
 function encryptionKey() {
   const configured = process.env.CLIENT_CREDENTIALS_ENCRYPTION_KEY;
   if (!configured)
@@ -27,16 +34,21 @@ export function encryptSecret(value: string) {
 }
 
 export function decryptSecret(ciphertext: string, iv: string, tag: string) {
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
-    encryptionKey(),
-    Buffer.from(iv, "base64"),
-  );
-  decipher.setAuthTag(Buffer.from(tag, "base64"));
-  return Buffer.concat([
-    decipher.update(Buffer.from(ciphertext, "base64")),
-    decipher.final(),
-  ]).toString("utf8");
+  const key = encryptionKey();
+  try {
+    const decipher = createDecipheriv(
+      "aes-256-gcm",
+      key,
+      Buffer.from(iv, "base64"),
+    );
+    decipher.setAuthTag(Buffer.from(tag, "base64"));
+    return Buffer.concat([
+      decipher.update(Buffer.from(ciphertext, "base64")),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    throw new CredentialDecryptionError();
+  }
 }
 
 export function encryptCredential(value: string) {

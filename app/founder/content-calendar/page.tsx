@@ -382,6 +382,9 @@ export default function ContentCalendarPage() {
     getFounderCalendarConnection().then(async (connection) => {
       if (!active) return;
       setCalendarConnection(connection);
+      if (connection.needsAttention) {
+        setMessage("Google Calendar connection needs attention. Reconnect the account to load calendars and sync content.");
+      }
       if (connection.connected && connection.accountMatchesTarget === false) {
         setMessage(`Connected as ${connection.email}. Disconnect and reconnect using the The Ant Media Google account before syncing content.`);
       }
@@ -2421,7 +2424,7 @@ export default function ContentCalendarPage() {
                     </div>
 
                     <div className="mt-3 rounded-xl border border-[var(--brand-border)] bg-white p-3">
-                      {calendarConnection.connected ? (
+                    {calendarConnection.connected ? (
                         <>
                           <p className={`text-[10px] font-semibold ${calendarConnection.accountMatchesTarget === false ? "text-amber-700" : "text-emerald-700"}`}>
                             {calendarConnection.accountMatchesTarget === false ? `Connected as ${calendarConnection.email}` : `Connected · ${calendarConnection.email}`}
@@ -2443,6 +2446,14 @@ export default function ContentCalendarPage() {
                             <button type="button" disabled={calendarBusy} onClick={async () => { setCalendarBusy(true); try { await disconnectFounderCalendar(); setCalendarConnection({ connected: false }); setAvailableCalendars([]); setForm((previous) => ({ ...previous, syncGoogleCalendar: false })); setMessage("Google Calendar disconnected."); } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to disconnect Google Calendar."); } finally { setCalendarBusy(false); } }} className="rounded-lg border border-red-200 px-3 py-1.5 text-[10px] font-semibold text-red-700 disabled:opacity-50">Disconnect</button>
                           </div>
                         </>
+                      ) : calendarConnection.needsAttention ? (
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] font-semibold text-amber-700">Connection needs attention</p>
+                            {calendarConnection.email && <p className="mt-0.5 text-[10px] text-[var(--brand-medium-gray)]">{calendarConnection.email}</p>}
+                          </div>
+                          <button type="button" disabled={calendarBusy} onClick={async () => { setCalendarBusy(true); try { await startFounderCalendarConnection(); } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to start Google connection."); setCalendarBusy(false); } }} className="rounded-lg bg-[var(--brand-red)] px-3 py-2 text-[10px] font-semibold text-white disabled:opacity-50">Reconnect Google Calendar</button>
+                        </div>
                       ) : (
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-[10px] text-[var(--brand-medium-gray)]">Not connected</p>
