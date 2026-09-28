@@ -1,8 +1,22 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
+import { Module } from "node:module";
+import { dirname } from "node:path";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
+import ts from "typescript";
 
-const { CredentialDecryptionError, decryptSecret, encryptSecret } = await import("../lib/client-credentials.ts");
+const sourcePath = fileURLToPath(new URL("../lib/client-credentials.ts", import.meta.url));
+const source = readFileSync(sourcePath, "utf8");
+const compiled = ts.transpileModule(source, {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText;
+const credentialModule = new Module(sourcePath);
+credentialModule.filename = sourcePath;
+credentialModule.paths = Module._nodeModulePaths(dirname(sourcePath));
+credentialModule._compile(compiled, sourcePath);
+const { CredentialDecryptionError, decryptSecret, encryptSecret } = credentialModule.exports;
 const testValue = "non-production-refresh-token-test-value";
 
 function setTestKey() {
